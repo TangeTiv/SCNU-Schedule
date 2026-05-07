@@ -168,65 +168,49 @@ function getSemesterCode(semesterIndex) {
  * 请求和解析课程数据
  */
 async function fetchAndParseCourses(academicYear, semesterIndex) {
-    AndroidBridge.showToast("正在请求课表数据...");
-
     const semesterCode = getSemesterCode(semesterIndex);
+    const requestBody = `xnm=${academicYear}&xqm=${semesterCode}&kzlx=ck&xsdm=&kclbdm=`;
     
-    // API URL 和请求体
-    const xnmXqmBody = `xnm=${academicYear}&xqm=${semesterCode}&kzlx=ck&xsdm=&kclbdm=`; 
-    const url = "https://webvpn.gdust.edu.cn/http/77726476706e69737468656265737421a1a013d2766626022b5cc7fd/kbcx/xskbcx_cxXsgrkb.html?vpn-12-o1-172.16.254.1&gnmkdm=N2151";
+    // 定义可能的入口地址：1. WebVPN 穿透地址 2. 内网直连地址
+    // 该学校反馈内网环境下 webvpn的入口会被跳转为内网地址 因此特别调整为存在多个链接获取，没有这个问题的适配参考可以简化逻辑
+    const targetUrls = [
+        "https://webvpn.gdust.edu.cn/http/77726476706e69737468656265737421a1a013d2766626022b5cc7fd/kbcx/xskbcx_cxXsgrkb.html?vpn-12-o1-172.16.254.1&gnmkdm=N2151",
+        "http://172.16.254.1/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151"
+    ];
 
-    console.log(`JS: 发送请求到 ${url}, body: ${xnmXqmBody}`);
-
-    const requestOptions = {
-        "headers": {
-            "content-type": "application/x-www-form-urlencoded;charset=UTF-8", 
-        },
-        "body": xnmXqmBody,
-        "method": "POST",
-        "credentials": "include"
-    };
-
-    try {
-        const response = await fetch(url, requestOptions);
-
-        if (!response.ok) {
-            throw new Error(`网络请求失败。状态码: ${response.status} (${response.statusText})`);
-        }
-        
-        const jsonText = await response.text();
-        let jsonData;
+    for (const url of targetUrls) {
         try {
-            jsonData = JSON.parse(jsonText);
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" 
+                },
+                body: requestBody,
+                credentials: "include"
+            });
+
+            if (response.ok) {
+                const jsonText = await response.text();
+                const jsonData = JSON.parse(jsonText);
+                if (jsonData && jsonData.kbList) {
+                    const parsedCourses = parseJsonData(jsonData.kbList);
+                    if (parsedCourses.length > 0) {
+                        return {
+                            courses: parsedCourses,
+                            config: {
+                                semesterStartDate: null,
+                                semesterTotalWeeks: 20
+                            }
+                        };
+                    }
+                }
+            }
         } catch (e) {
-            console.error('JS: JSON 解析失败，可能是会话过期:', e);
-            AndroidBridge.showToast("数据返回格式错误，可能是您未成功登录或会话已过期。");
-            return null;
+            console.error(`Entry failed: ${url}`);
         }
-
-        const courses = parseJsonData(jsonData); 
-
-        if (courses.length === 0) {
-            AndroidBridge.showToast("未找到任何课程数据，请检查所选学年学期是否正确或本学期无课，或教务系统需要二次登录。");
-            return null;
-        }
-
-        console.log(`JS: 课程数据解析成功，共找到 ${courses.length} 门课程。`);
-        
-        // 默认总周数为 20，周一为一周第一天。
-        const config = {
-            semesterTotalWeeks: 20,
-            firstDayOfWeek: 1 
-        };
-
-        // 返回课程列表和配置信息
-        return { courses: courses, config: config }; 
-
-    } catch (error) {
-        AndroidBridge.showToast(`请求或解析失败: ${error.message}`);
-        console.error('JS: Fetch/Parse Error:', error);
-        return null;
     }
+    AndroidBridge.showToast("未能获取课表数据，请检查网络环境或登录状态。");
+    return null;
 }
 
 async function saveCourses(parsedCourses) {
