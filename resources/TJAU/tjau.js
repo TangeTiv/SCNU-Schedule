@@ -2,7 +2,6 @@
 // 非该大学开发者适配,开发者无法及时发现问题
 // 出现问题请提issues或者提交pr更改,这更加快速
 
-
 function powerSplit(paramsRaw) {
     const args = [];
     let current = "";
@@ -41,38 +40,97 @@ function cleanArg(s) {
  * 全局课程合并逻辑
  */
 function mergeContinuousLessons(lessons) {
-    if (!lessons || lessons.length <= 1) return lessons;
+    if (!lessons || lessons.length === 0) return [];
 
-    lessons.sort((a, b) => {
-        if (a.name !== b.name) return a.name.localeCompare(b.name);
-        if (a.day !== b.day) return a.day - b.day;
-        if (JSON.stringify(a.weeks) !== JSON.stringify(b.weeks)) 
-            return JSON.stringify(a.weeks).localeCompare(JSON.stringify(b.weeks));
-        return a.startSection - b.startSection;
+    // 1. 建立基于 (课程名|教师|地点|星期几) 的分组
+    const groups = {};
+    lessons.forEach(l => {
+        const key = `${l.name}|${l.teacher}|${l.position}|${l.day}`;
+        if (!groups[key]) {
+            groups[key] = {
+                name: l.name,
+                teacher: l.teacher,
+                position: l.position,
+                day: l.day,
+                // 假设大学最多 50 周，构建一个：第 N 周对应哪些节次的矩阵
+                weeksMatrix: Array.from({ length: 50 }, () => new Set())
+            };
+        }
+        // 将系统传来的凌乱数据彻底打散，按“周”填入对应的“节”中，Set自动去重
+        if (l.weeks && Array.isArray(l.weeks)) {
+            l.weeks.forEach(w => {
+                if (w >= 0 && w < 50) {
+                    for (let s = l.startSection; s <= l.endSection; s++) {
+                        groups[key].weeksMatrix[w].add(s);
+                    }
+                }
+            });
+        }
     });
 
     const merged = [];
-    let current = lessons[0];
 
-    for (let i = 1; i < lessons.length; i++) {
-        let next = lessons[i];
+    // 2. 根据矩阵重新组装绝对精确的课程块
+    for (const key in groups) {
+        const group = groups[key];
+        const matrix = group.weeksMatrix;
+        
+        // 用于记录相同的“连续节次块”分布在哪些周次
+        // 例如 blockMap["1-2"] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        // 例如 blockMap["2-2"] = [10]
+        const blockMap = {};
 
-        const isSameLesson = 
-            current.name === next.name &&
-            current.teacher === next.teacher &&
-            current.position === next.position &&
-            current.day === next.day &&
-            JSON.stringify(current.weeks) === JSON.stringify(next.weeks);
-        const isContinuous = current.endSection + 1 === next.startSection;
+        for (let w = 0; w < matrix.length; w++) {
+            const sections = Array.from(matrix[w]).sort((a, b) => a - b);
+            if (sections.length === 0) continue;
 
-        if (isSameLesson && isContinuous) {
-            current.endSection = next.endSection;
-        } else {
-            merged.push(current);
-            current = next;
+            // 寻找当前周的连续节次块
+            let start = sections[0];
+            let prev = sections[0];
+
+            for (let i = 1; i < sections.length; i++) {
+                const curr = sections[i];
+                if (curr === prev + 1) {
+                    prev = curr; // 节次连续，继续延伸
+                } else {
+                    // 节次断开，结算上一个块
+                    const blockKey = `${start}-${prev}`;
+                    if (!blockMap[blockKey]) blockMap[blockKey] = [];
+                    blockMap[blockKey].push(w);
+                    
+                    // 开启新块
+                    start = curr;
+                    prev = curr;
+                }
+            }
+            // 结算每周最后一个块
+            const blockKey = `${start}-${prev}`;
+            if (!blockMap[blockKey]) blockMap[blockKey] = [];
+            blockMap[blockKey].push(w);
+        }
+
+        // 3. 将聚合好的 blockMap 转换为最终的 JSON 对象
+        for (const blockKey in blockMap) {
+            const [startSec, endSec] = blockKey.split('-').map(Number);
+            merged.push({
+                name: group.name,
+                teacher: group.teacher,
+                position: group.position,
+                day: group.day,
+                startSection: startSec,
+                endSection: endSec,
+                weeks: blockMap[blockKey]
+            });
         }
     }
-    merged.push(current);
+
+    // 4. 排序以便输出整洁美观
+    merged.sort((a, b) => {
+        if (a.day !== b.day) return a.day - b.day;
+        if (a.startSection !== b.startSection) return a.startSection - b.startSection;
+        return a.name.localeCompare(b.name);
+    });
+
     return merged;
 }
 
@@ -121,10 +179,8 @@ function parseTaskActivities(html) {
     }
 
     // 执行全局合并逻辑
-    const mergedResults = mergeContinuousLessons(rawResults);
-    return mergedResults;
+    return mergeContinuousLessons(rawResults);
 }
-
 
 async function request(url, options = {}) {
     const res = await fetch(url, { credentials: "include", ...options });
