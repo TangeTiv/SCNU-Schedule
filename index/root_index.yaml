@@ -505,4 +505,24 @@ schools:
   - id: "CAUC"
     name: "中国民航大学"
     initial: "Z"
-    resource_folder: "CAUC"  
+    resource_folder: "CAUC"
+
+  - id: "ECJTU"
+    name: "华东交通大学"
+    initial: "H"
+    resource_folder: "ECJTU"
+
+  - id: "WENHUA"
+    name: "文华学院"
+    initial: "W"
+    resource_folder: "WENHUA"
+
+  - id: "XYAFU"
+    name: "信阳农林学院"
+    initial: "X"
+    resource_folder: "XYAFU"
+
+  - id: "ZJUT"
+    name: "浙江工业大学"
+    initial: "Z"
+    resource_folder: "ZJUT"
