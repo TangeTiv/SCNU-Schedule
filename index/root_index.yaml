@@ -517,3 +517,8 @@ schools:
     initial: "W"
     resource_folder: "WENHUA"
 
+  - id: "ZJUT"
+    name: "浙江工业大学"
+    initial: "Z"
+    resource_folder: "ZJUT"
+
