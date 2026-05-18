@@ -517,3 +517,8 @@ schools:
     initial: "W"
     resource_folder: "WENHUA"
 
+  - id: "XYAFU"
+    name: "信阳农林学院"
+    initial: "X"
+    resource_folder: "XYAFU"
+
