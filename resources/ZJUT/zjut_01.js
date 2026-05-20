@@ -1,13 +1,20 @@
-// 文件: ZJUT_01.js
-// 功能：从浙江工业大学正方教务系统获取课程表，解析后导入到拾光课程表
-// 适配：浙江工业大学正方教务系统
-// 维护者：glxgo
-
 const BASE = `${window.location.origin}/jwglxt`;
 const GNMKDM = 'N253508';
 const INDEX_PATH = `/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=${GNMKDM}&layout=default`;
 const COURSE_API_PATH = `/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=${GNMKDM}`;
-const TIME_API_PATH = `/kbcx/xskbcx_cxRjc.html?gnmkdm=${GNMKDM}`;
+
+const TIME_SLOTS = [
+  { number: 1, startTime: '08:00', endTime: '08:45' },
+  { number: 2, startTime: '08:55', endTime: '09:40' },
+  { number: 3, startTime: '09:55', endTime: '10:40' },
+  { number: 4, startTime: '10:50', endTime: '11:35' },
+  { number: 5, startTime: '11:45', endTime: '12:30' },
+  { number: 6, startTime: '13:30', endTime: '14:15' },
+  { number: 7, startTime: '14:25', endTime: '15:10' },
+  { number: 8, startTime: '15:25', endTime: '16:10' },
+  { number: 9, startTime: '16:20', endTime: '17:05' },
+  { number: 10, startTime: '18:30', endTime: '21:30' },
+];
 
 async function req(url, method = 'GET', body) {
   const res = await fetch(url, {
@@ -157,25 +164,10 @@ function parseCourses(data) {
   return { courses: [...deduped.values()], xqhId };
 }
 
-function parseTimeSlots(data) {
-  if (!Array.isArray(data) || !data.length) throw new Error('未获取到节次时间数据');
-  return data.map((item) => ({
-    number: Number(item.jcmc),
-    startTime: String(item.qssj || '').trim(),
-    endTime: String(item.jssj || '').trim()
-  })).filter(item => item.number > 0 && item.startTime && item.endTime);
-}
-
 async function fetchCourses(xnm, xqm) {
   const body = `xnm=${encodeURIComponent(xnm)}&xqm=${encodeURIComponent(xqm)}&kzlx=ck&xsdm=&kclbdm=&kclxdm=`;
   const text = await req(`${BASE}${COURSE_API_PATH}`, 'POST', body);
   return JSON.parse(text);
-}
-
-async function fetchTimeSlots(xnm, xqm) {
-  const body = `xnm=${encodeURIComponent(xnm)}&xqm=${encodeURIComponent(xqm)}`;
-  const text = await req(`${BASE}${TIME_API_PATH}`, 'POST', body);
-  return parseTimeSlots(JSON.parse(text));
 }
 
 async function run() {
@@ -184,9 +176,8 @@ async function run() {
     AndroidBridge.showToast('正在解析课表数据...');
 
     const rawData = await fetchCourses(xnm, xqm);
-    const { courses, xqhId } = parseCourses(rawData);
+    const { courses } = parseCourses(rawData);
     if (!courses.length) throw new Error('未获取到课表数据');
-    const timeSlots = await fetchTimeSlots(xnm, xqm).catch(() => null);
 
     const allWeeks = courses.flatMap(course => course.weeks);
     const semesterTotalWeeks = allWeeks.length ? Math.max(...allWeeks) : 20;
@@ -196,9 +187,7 @@ async function run() {
       semesterStartDate: null,
       firstDayOfWeek: 1
     }));
-    if (timeSlots && timeSlots.length) {
-      await window.AndroidBridgePromise.savePresetTimeSlots(JSON.stringify(timeSlots));
-    }
+    await window.AndroidBridgePromise.savePresetTimeSlots(JSON.stringify(TIME_SLOTS));
     await window.AndroidBridgePromise.saveImportedCourses(JSON.stringify(courses));
 
     AndroidBridge.showToast(`导入成功：${courses.length} 门`);
