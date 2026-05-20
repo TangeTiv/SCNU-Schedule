@@ -1,8 +1,3 @@
-// 文件: WENHUA_01.js
-// 功能：从文华学院正方教务系统获取课程表，解析后导入到拾光课程表
-// 适配：文华学院正方教务系统
-// 维护者：glxgo
-
 const BASE = `${window.location.origin}/jwglxt`;
 const INDEX_PATH = '/kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm=N2151&layout=default';
 const COURSE_API_PATH = '/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151';
@@ -159,7 +154,7 @@ function parseCourses(data) {
 function parseTimeSlots(data) {
   if (!Array.isArray(data) || !data.length) throw new Error('未获取到节次时间数据');
   return data.map((item) => ({
-    number: Number(item.jcmc),
+    number: Number(item.jcdm || item.jcmc),
     startTime: String(item.qssj || '').trim(),
     endTime: String(item.jssj || '').trim()
   })).filter(item => item.number > 0 && item.startTime && item.endTime);
