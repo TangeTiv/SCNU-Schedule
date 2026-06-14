@@ -1,23 +1,22 @@
 /**
- * 华南师范大学成绩抓取脚本 - 自动翻页版
+ * 华南师范大学成绩抓取脚本 - offset 偏移翻页版
  *
  * 运行环境：Android WebView（已登录状态，Session/Cookie 自动携带）
- * 功能：从第 1 页开始请求，当某页返回 0 条数据时停止，
- *       或达到最大页数限制时停止（防死循环）。
- *       自动合并所有记录，以 JSON 弹窗展示。
+ * 功能：使用 offset 偏移参数翻页，逐页请求直到取完所有数据。
+ *       避免 API 忽略 page 参数导致重复数据的问题。
  */
 
 (function () {
     "use strict";
 
     var REQUEST_URL = "/cjcx/cjcx_cxXsgrcj.html?doType=query&gnmkdm=N305005";
-    var PAGE_SIZE = 100;
-    var MAX_PAGES = 10;  // 安全上限，防止 page 参数被忽略时无限循环
+    var PAGE_SIZE = 10;    // 和 API 实际返回条数保持一致
+    var MAX_PAGES = 20;    // 安全上限
 
     /**
      * 收集查询参数
      */
-    function getQueryParams(page) {
+    function getQueryParams(offset) {
         var form = document.getElementById("searchForm");
         if (!form) {
             throw new Error("未找到 searchForm，页面可能未完全加载");
@@ -33,15 +32,16 @@
         }
 
         params.set("rows", String(PAGE_SIZE));
-        params.set("page", String(page));
+        params.set("offset", String(offset));
         return params;
     }
 
     /**
-     * 请求某一页，返回该页的记录数组
+     * 请求某一偏移位置的数据，返回该页的记录数组
      */
-    function fetchPage(page) {
-        var params = getQueryParams(page);
+    function fetchOffset(offset) {
+        var params = getQueryParams(offset);
+        console.log("请求 offset=" + offset);
 
         return fetch(REQUEST_URL, {
             method: "POST",
@@ -66,7 +66,6 @@
             if (Array.isArray(data)) {
                 return data;
             }
-            console.warn("未知数据格式:", data);
             return [];
         });
     }
@@ -75,7 +74,6 @@
      * 从原始记录中提取标准字段
      */
     function extractItem(raw) {
-        // jqGrid 格式 { cell: [...] }
         if (raw.cell && Array.isArray(raw.cell)) {
             return {
                 courseName: raw.cell[0] ? String(raw.cell[0]).trim() : "",
@@ -84,7 +82,6 @@
                 gpa: raw.cell[3] ? String(raw.cell[3]).trim() : ""
             };
         }
-        // 对象格式 { kcmc, xf, cj, jd }
         return {
             courseName: (raw.kcmc || raw.courseName || "").trim(),
             credit: (raw.xf || raw.credit || "").toString().trim(),
@@ -94,45 +91,71 @@
     }
 
     /**
-     * 主入口：串行请求各页，直到取完或到达上限
+     * 主入口：串行请求各偏移位置，数据出现重复时自动停止
      */
     function fetchAllScores() {
         console.log("成绩抓取脚本开始执行...");
 
         var allRawData = [];
-        var currentPage = 1;
+        var offset = 0;
+        var pageCount = 0;
 
-        function requestNextPage() {
-            if (currentPage > MAX_PAGES) {
-                console.warn("已达最大页数限制 " + MAX_PAGES + "，停止翻页");
+        function requestNext() {
+            if (pageCount >= MAX_PAGES) {
+                console.warn("已达最大页数限制 " + MAX_PAGES);
                 return Promise.resolve();
             }
 
-            return fetchPage(currentPage).then(function (items) {
+            return fetchOffset(offset).then(function (items) {
                 if (!items || items.length === 0) {
-                    console.log("第 " + currentPage + " 页无数据，抓取结束");
+                    console.log("offset=" + offset + " 无数据，抓取结束");
                     return Promise.resolve();
                 }
 
-                console.log("第 " + currentPage + " 页获取到 " + items.length + " 条");
-                allRawData.push.apply(allRawData, items);
-                currentPage++;
-                return requestNextPage();
+                pageCount++;
+
+                // 去重：和已有数据对比，如果全是重复则停止
+                var existingKeys = {};
+                for (var i = 0; i < allRawData.length; i++) {
+                    var k = allRawData[i].kcmc || allRawData[i].bh || "";
+                    existingKeys[k] = true;
+                }
+                var newCount = 0;
+                for (var j = 0; j < items.length; j++) {
+                    var key = items[j].kcmc || items[j].bh || "";
+                    if (!existingKeys[key]) {
+                        existingKeys[key] = true;
+                        allRawData.push(items[j]);
+                        newCount++;
+                    }
+                }
+
+                console.log("offset=" + offset + " 返回 " + items.length +
+                            " 条，新增 " + newCount + " 条");
+
+                if (newCount === 0) {
+                    // 全是重复，说明已经取完
+                    console.log("数据已全部获取完毕");
+                    return Promise.resolve();
+                }
+
+                offset += PAGE_SIZE;
+                return requestNext();
             });
         }
 
-        requestNextPage()
+        requestNext()
             .then(function () {
                 if (allRawData.length === 0) {
                     AndroidBridge.showToast("未获取到任何成绩数据");
-                    alert("未获取到任何成绩数据，请确认页面已加载完成");
+                    alert("未获取到任何成绩数据");
                     return;
                 }
 
                 var results = allRawData.map(extractItem);
                 var output = JSON.stringify(results, null, 2);
 
-                console.log("共抓取 " + results.length + " 条成绩（原始记录 " + allRawData.length + " 条）");
+                console.log("共抓取 " + results.length + " 条成绩");
                 AndroidBridge.showToast("共抓取到 " + results.length + " 条成绩数据");
                 alert(output);
             })
