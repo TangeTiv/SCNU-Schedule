@@ -40,46 +40,31 @@
             }
         }
 
-        // 每页条数设大一些，尽量一次取完
-        params.set("page", "1");
-        params.set("rows", "1000");
+        // 与服务端默认 pageSize 保持一致
+        params.set("rows", "15");
 
         return params;
     }
 
     /**
+     * 解析 items 数组中的单条记录为统一格式
+     */
+    function extractItem(item) {
+        return {
+            courseName: (item.kcmc || "").trim(),
+            credit: (item.xf || "").toString().trim(),
+            score: (item.cj || "").toString().trim(),
+            gpa: (item.jd || "").toString().trim()
+        };
+    }
+
+    /**
      * 解析接口返回的 JSON 数据，提取成绩列表
-     * 实际响应格式：{ items: [{ kcmc, xf, cj, jd, ... }], totalResult: 13, ... }
      * @param {Object} json - 接口返回的 JSON 对象
-     * @returns {Array} 成绩数组 [{ courseName, credit, score, gpa }]
+     * @returns {Array} 成绩数组，或 null（格式未知）
      */
     function parseResponseJson(json) {
-        // 方式1：标准返回 { items: [...] }
-        if (json.items && Array.isArray(json.items) && json.items.length > 0) {
-            return json.items.map(function (item) {
-                return {
-                    courseName: (item.kcmc || "").trim(),
-                    credit: (item.xf || "").toString().trim(),
-                    score: (item.cj || "").toString().trim(),
-                    gpa: (item.jd || "").toString().trim()
-                };
-            });
-        }
-
-        // 方式2：直返数组
-        if (Array.isArray(json) && json.length > 0) {
-            return json.map(function (item) {
-                return {
-                    courseName: (item.kcmc || item.courseName || "").trim(),
-                    credit: (item.xf || item.credit || "").toString().trim(),
-                    score: (item.cj || item.score || "").toString().trim(),
-                    gpa: (item.jd || item.gpa || "").toString().trim()
-                };
-            });
-        }
-
-        // 方式3：标准 jqGrid 格式 { rows: [{ cell: [...] }] }
-        // 注意：cell 中各列顺序由 colModel 决定，此处仅作兜底
+        // 方式1：{ rows: [{ cell: [...] }] } jqGrid 标准格式
         if (json.rows && Array.isArray(json.rows) && json.rows.length > 0) {
             var results = [];
             for (var i = 0; i < json.rows.length; i++) {
@@ -96,21 +81,34 @@
             return results;
         }
 
-        // 兜底：未知格式，包裹到 alert 里供调试
-        console.warn("未知 JSON 结构", json);
-        return [];
+        // 方式2：直返数组
+        if (Array.isArray(json)) {
+            return json.map(function (item) {
+                return {
+                    courseName: (item.kcmc || item.courseName || "").trim(),
+                    credit: (item.xf || item.credit || "").toString().trim(),
+                    score: (item.cj || item.score || "").toString().trim(),
+                    gpa: (item.jd || item.gpa || "").toString().trim()
+                };
+            });
+        }
+
+        // 其他格式（含 { items: [...] }）—— 返回 null，由外层统一用 extractItem 逐条处理
+        return null;
     }
 
     /**
-     * 发送请求获取成绩数据
+     * 请求第 page 页，结果追加到 allItems 数组
+     * @param {number} page - 页码（从 1 开始）
+     * @param {Array} allItems - 用于累计所有页的原始 item 对象
+     * @param {number} totalResult - 总记录数（仅首次传入，后续递归沿用）
+     * @returns {Promise} 解析完成后 resolve
      */
-    function fetchScores() {
+    function fetchPage(page, allItems, totalResult) {
         var params = getQueryParams();
-        if (!params) return;
+        params.set("page", page.toString());
 
-        console.log("请求参数:", params.toString());
-
-        fetch("/cjcx/cjcx_cxXsgrcj.html?doType=query&gnmkdm=N305005", {
+        return fetch("/cjcx/cjcx_cxXsgrcj.html?doType=query&gnmkdm=N305005", {
             method: "POST",
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
@@ -120,23 +118,55 @@
             credentials: "include"
         })
         .then(function (response) {
-            if (!response.ok) {
-                throw new Error("HTTP " + response.status);
-            }
+            if (!response.ok) throw new Error("HTTP " + response.status);
             return response.json();
         })
         .then(function (data) {
-            var results = parseResponseJson(data);
+            // 追加当前页的原始数据
+            if (data.items && Array.isArray(data.items)) {
+                for (var i = 0; i < data.items.length; i++) {
+                    allItems.push(data.items[i]);
+                }
+            }
 
-            if (results.length === 0) {
-                AndroidBridge.showToast("未解析到成绩数据");
-                // 输出原始数据供调试
-                alert("无法解析成绩，原始响应：\n" + JSON.stringify(data, null, 2));
+            // 首次请求时读取分页信息
+            if (totalResult === undefined) {
+                totalResult = data.totalResult || data.totalCount || 0;
+                var pageSize = data.pageSize || data.showCount || 15;
+                var totalPages = Math.ceil(totalResult / pageSize);
+
+                // 如果只有一页，直接返回
+                if (totalPages <= 1) return;
+
+                // 递归请求剩余页面
+                var promises = [];
+                for (var p = 2; p <= totalPages; p++) {
+                    promises.push(fetchPage(p, allItems, totalResult));
+                }
+                return Promise.all(promises);
+            }
+        });
+    }
+
+    /**
+     * 主入口：获取成绩数据（支持多页合并）
+     */
+    function fetchScores() {
+        console.log("成绩抓取脚本开始执行...");
+
+        var allItems = [];
+
+        fetchPage(1, allItems)
+        .then(function () {
+            if (allItems.length === 0) {
+                AndroidBridge.showToast("未获取到成绩数据");
                 return;
             }
 
+            var results = allItems.map(extractItem);
             var output = JSON.stringify(results, null, 2);
-            console.log("成功抓取 " + results.length + " 条成绩");
+
+            console.log("成功抓取 " + results.length + " 条成绩（合并 " + allItems.length + " 条原始记录）");
             AndroidBridge.showToast("共抓取到 " + results.length + " 条成绩数据");
             alert(output);
         })
