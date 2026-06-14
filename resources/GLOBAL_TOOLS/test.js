@@ -1,136 +1,150 @@
 /**
- * 华南师范大学（正方教务系统）成绩抓取测试脚本
+ * 华南师范大学（正方教务系统）成绩抓取测试脚本 - 接口直连版
  *
- * 运行环境：Android WebView
- * 可用桥接：AndroidBridge.showToast()、alert()
- *
- * 功能：遍历 jqGrid 成绩表格，智能识别课程名称、提取学分、成绩、绩点，
- *       以 JSON 格式弹窗展示结果。
+ * 运行环境：Android WebView（已登录状态，Session/Cookie 自动携带）
+ * 功能：直接请求成绩查询接口，解析 JSON 并返回成绩列表
+ * 输出：alert 弹出 JSON，并通过 AndroidBridge.showToast 提示数量
  */
 
 (function () {
     "use strict";
 
     /**
-     * 判断文本是否为纯数字（含小数点）
+     * 收集查询参数：序列化页面 searchForm 的所有字段
+     * 这样 hidden input（jsxx, jslxdm, yhm, sxxdm, bj, xscjcksz 等）
+     * 和可见下拉框（xnm, xqm, kcbjdm 等）都会被自动包含
      */
-    function isNumeric(text) {
-        return /^\d+(\.\d+)?$/.test(text);
-    }
-
-    /**
-     * 判断文本是否为学年学期格式（如 "2025-2026"、"2025-2026学年"）
-     */
-    function isYearSemester(text) {
-        return /^\d{4}\s*-\s*\d{4}/.test(text);
-    }
-
-    /**
-     * 从一行 td 列表中智能识别课程名称
-     * 跳过：纯数字、学年学期、过短的标签文本
-     * @param {NodeList} cells - td 元素列表
-     * @returns {string} 识别到的课程名称，未找到返回空字符串
-     */
-    function findCourseName(cells) {
-        for (let i = 0; i < cells.length; i++) {
-            const text = cells[i].textContent.trim();
-            // 跳过空文本
-            if (!text) continue;
-            // 跳过纯数字（序号、学号等）
-            if (isNumeric(text)) continue;
-            // 跳过学年学期格式
-            if (isYearSemester(text)) continue;
-            // 跳过过短的标签文本（复选框列、下拉选项等）
-            if (text.length < 2) continue;
-            // 跳过常见短标签
-            if (/^(全部|主修|辅修|学位|微专业|非学位|二学位)$/.test(text)) continue;
-            // 第一个符合条件的就是课程名
-            return text;
-        }
-        return "";
-    }
-
-    /**
-     * 从一行 tr 元素中解析成绩数据
-     * @param {HTMLTableRowElement} tr - jqGrid 数据行元素
-     * @returns {Object|null} 解析出的成绩对象，无效行返回 null
-     */
-    function parseRow(tr) {
-        const cells = tr.querySelectorAll("td");
-        if (cells.length === 0) return null;
-
-        try {
-            // 智能识别课程名称
-            const courseName = findCourseName(cells);
-
-            // 过滤空课程名行
-            if (!courseName) return null;
-            // 过滤合计/总计/平均行
-            if (/合计|总计|平均/i.test(courseName)) return null;
-
-            // 学分：从前往后找第一个数值列
-            let credit = "";
-            for (let i = 0; i < cells.length - 2; i++) {
-                const text = cells[i].textContent.trim();
-                if (isNumeric(text) && parseFloat(text) <= 30) {
-                    credit = text;
-                    break;
-                }
-            }
-
-            // 成绩在倒数第 2 列，绩点在最后 1 列
-            const score = cells[cells.length - 2].textContent.trim();
-            const gpa = cells[cells.length - 1].textContent.trim();
-
-            return { courseName: courseName, credit: credit, score: score, gpa: gpa };
-        } catch (rowError) {
-            console.error("解析单行数据时出错:", rowError);
+    function getQueryParams() {
+        var form = document.getElementById("searchForm");
+        if (!form) {
+            AndroidBridge.showToast("未找到 searchForm，请确认页面是否完整加载");
             return null;
         }
+
+        var params = new URLSearchParams();
+
+        // 方式1：优先使用 FormData（不支持的浏览器回退到方式2）
+        if (typeof FormData !== "undefined") {
+            var formData = new FormData(form);
+            formData.forEach(function (value, key) {
+                params.append(key, value);
+            });
+        } else {
+            // 方式2：手动遍历表单元素
+            var elements = form.elements;
+            for (var i = 0; i < elements.length; i++) {
+                var el = elements[i];
+                if (el.name && el.name !== "" && el.type !== "submit") {
+                    params.append(el.name, el.value);
+                }
+            }
+        }
+
+        // 每页条数设大一些，尽量一次取完
+        params.set("page", "1");
+        params.set("rows", "1000");
+
+        return params;
     }
 
     /**
-     * 主函数：抓取成绩数据
+     * 解析接口返回的 JSON 数据，提取成绩列表
+     * 实际响应格式：{ items: [{ kcmc, xf, cj, jd, ... }], totalResult: 13, ... }
+     * @param {Object} json - 接口返回的 JSON 对象
+     * @returns {Array} 成绩数组 [{ courseName, credit, score, gpa }]
      */
-    function runScoreScraper() {
-        console.log("成绩抓取脚本开始执行...");
-
-        // jqGrid 数据行带有 jqgrow 类
-        var rows = document.querySelectorAll("#tabGrid tr.jqgrow");
-        // 兜底：兼容不同的 jqGrid 版本
-        if (!rows || rows.length === 0) {
-            rows = document.querySelectorAll(".ui-jqgrid-btable tbody tr.jqgrow");
+    function parseResponseJson(json) {
+        // 方式1：标准返回 { items: [...] }
+        if (json.items && Array.isArray(json.items) && json.items.length > 0) {
+            return json.items.map(function (item) {
+                return {
+                    courseName: (item.kcmc || "").trim(),
+                    credit: (item.xf || "").toString().trim(),
+                    score: (item.cj || "").toString().trim(),
+                    gpa: (item.jd || "").toString().trim()
+                };
+            });
         }
 
-        if (!rows || rows.length === 0) {
-            AndroidBridge.showToast("未找到成绩表格");
-            console.warn("未找到 jqGrid 成绩表格（#tabGrid tr.jqgrow），请确认页面是否包含成绩数据。");
-            return;
+        // 方式2：直返数组
+        if (Array.isArray(json) && json.length > 0) {
+            return json.map(function (item) {
+                return {
+                    courseName: (item.kcmc || item.courseName || "").trim(),
+                    credit: (item.xf || item.credit || "").toString().trim(),
+                    score: (item.cj || item.score || "").toString().trim(),
+                    gpa: (item.jd || item.gpa || "").toString().trim()
+                };
+            });
         }
 
-        var results = [];
-        var parseErrorCount = 0;
-
-        Array.prototype.forEach.call(rows, function (tr) {
-            var record = parseRow(tr);
-            if (record) {
-                results.push(record);
-            } else {
-                parseErrorCount++;
+        // 方式3：标准 jqGrid 格式 { rows: [{ cell: [...] }] }
+        // 注意：cell 中各列顺序由 colModel 决定，此处仅作兜底
+        if (json.rows && Array.isArray(json.rows) && json.rows.length > 0) {
+            var results = [];
+            for (var i = 0; i < json.rows.length; i++) {
+                var cells = json.rows[i].cell;
+                if (cells && cells.length >= 4) {
+                    results.push({
+                        courseName: cells[0] ? cells[0].trim() : "",
+                        credit: cells[1] ? cells[1].trim() : "",
+                        score: cells[2] ? cells[2].trim() : "",
+                        gpa: cells[3] ? cells[3].trim() : ""
+                    });
+                }
             }
-        });
-
-        if (results.length === 0) {
-            AndroidBridge.showToast("未解析到有效成绩数据");
-            console.warn("遍历了 " + rows.length + " 行，但未解析到有效成绩，请检查 jqGrid 列结构。");
-            return;
+            return results;
         }
 
-        var output = JSON.stringify(results, null, 2);
-        console.log("成功解析 " + results.length + " 条成绩记录，过滤 " + parseErrorCount + " 行。");
-        AndroidBridge.showToast("共抓取到 " + results.length + " 条成绩数据");
-        alert(output);
+        // 兜底：未知格式，包裹到 alert 里供调试
+        console.warn("未知 JSON 结构", json);
+        return [];
     }
 
-    runScoreScraper();
+    /**
+     * 发送请求获取成绩数据
+     */
+    function fetchScores() {
+        var params = getQueryParams();
+        if (!params) return;
+
+        console.log("请求参数:", params.toString());
+
+        fetch("/cjcx/cjcx_cxXsgrcj.html?doType=query&gnmkdm=N305005", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest"
+            },
+            body: params.toString(),
+            credentials: "include"
+        })
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error("HTTP " + response.status);
+            }
+            return response.json();
+        })
+        .then(function (data) {
+            var results = parseResponseJson(data);
+
+            if (results.length === 0) {
+                AndroidBridge.showToast("未解析到成绩数据");
+                // 输出原始数据供调试
+                alert("无法解析成绩，原始响应：\n" + JSON.stringify(data, null, 2));
+                return;
+            }
+
+            var output = JSON.stringify(results, null, 2);
+            console.log("成功抓取 " + results.length + " 条成绩");
+            AndroidBridge.showToast("共抓取到 " + results.length + " 条成绩数据");
+            alert(output);
+        })
+        .catch(function (error) {
+            console.error("请求失败:", error);
+            AndroidBridge.showToast("请求成绩接口失败: " + error.message);
+        });
+    }
+
+    fetchScores();
 })();
