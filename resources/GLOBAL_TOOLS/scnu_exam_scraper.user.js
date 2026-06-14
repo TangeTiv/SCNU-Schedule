@@ -17,12 +17,16 @@
     function getQueryParams() {
         var params = new URLSearchParams();
 
-        // 从表单中读取选中的学年和学期（使用 name 或 id 查找）
+        // 从表单中读取选中的学年和学期
         var xnmEl = document.querySelector('[name="xnm"]') || document.getElementById("xnm");
         var xqmEl = document.querySelector('[name="xqm"]') || document.getElementById("xqm");
-        params.set("xnm", xnmEl ? xnmEl.value : "");
-        params.set("xqm", xqmEl ? xqmEl.value : "");
-        console.log("[抓取考试] 当前选中 xnm=" + params.get("xnm") + " xqm=" + params.get("xqm"));
+        var xnm = xnmEl ? xnmEl.value : "";
+        var xqm = xqmEl ? xqmEl.value : "";
+        // 如果学期为空（选了"全部"），默认取第 2 学期（当前考试季）
+        if (!xqm) xqm = "12";
+        params.set("xnm", xnm);
+        params.set("xqm", xqm);
+        console.log("[抓取考试] 当前选中 xnm=" + xnm + " xqm=" + xqm);
         params.set("ksmcdmb_id", "");
         params.set("kch", "");
         params.set("kc", "");
