@@ -49,21 +49,27 @@
 
     /**
      * 解析接口返回的 JSON 数据，提取成绩列表
-     * 实际响应格式：{ items: [{ kcmc, xf, cj, jd, ... }], totalResult: 13, ... }
+     * 实际响应格式：{ items: [{ kcmc, xf, cj, jd, pscj, qmcj, ... }], ... }
      * @param {Object} json - 接口返回的 JSON 对象
-     * @returns {Array} 成绩数组 [{ courseName, credit, score, gpa }]
+     * @returns {Array} 成绩数组 [{ courseName, credit, score, gpa, dailyScore, finalExam, totalScore }]
      */
     function parseResponseJson(json) {
+        // 从单个 item 中提取共有字段
+        function extractItem(item) {
+            return {
+                courseName: (item.kcmc || "").trim(),
+                credit: (item.xf || "").toString().trim(),
+                score: (item.cj || "").toString().trim(),
+                gpa: (item.jd || "").toString().trim(),
+                dailyScore: (item.pscj || "").toString().trim(),
+                finalExam: (item.qmcj || "").toString().trim(),
+                totalScore: (item.cj || item.zpcj || "").toString().trim()
+            };
+        }
+
         // 方式1：标准返回 { items: [...] }
         if (json.items && Array.isArray(json.items) && json.items.length > 0) {
-            return json.items.map(function (item) {
-                return {
-                    courseName: (item.kcmc || "").trim(),
-                    credit: (item.xf || "").toString().trim(),
-                    score: (item.cj || "").toString().trim(),
-                    gpa: (item.jd || "").toString().trim()
-                };
-            });
+            return json.items.map(extractItem);
         }
 
         // 方式2：直返数组
@@ -73,7 +79,10 @@
                     courseName: (item.kcmc || item.courseName || "").trim(),
                     credit: (item.xf || item.credit || "").toString().trim(),
                     score: (item.cj || item.score || "").toString().trim(),
-                    gpa: (item.jd || item.gpa || "").toString().trim()
+                    gpa: (item.jd || item.gpa || "").toString().trim(),
+                    dailyScore: (item.pscj || "").toString().trim(),
+                    finalExam: (item.qmcj || "").toString().trim(),
+                    totalScore: (item.cj || item.zpcj || item.score || "").toString().trim()
                 };
             });
         }
@@ -89,7 +98,10 @@
                         courseName: cells[0] ? cells[0].trim() : "",
                         credit: cells[1] ? cells[1].trim() : "",
                         score: cells[2] ? cells[2].trim() : "",
-                        gpa: cells[3] ? cells[3].trim() : ""
+                        gpa: cells[3] ? cells[3].trim() : "",
+                        dailyScore: "",
+                        finalExam: "",
+                        totalScore: cells[2] ? cells[2].trim() : ""
                     });
                 }
             }
