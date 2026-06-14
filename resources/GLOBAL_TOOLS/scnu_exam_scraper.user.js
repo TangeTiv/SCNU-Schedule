@@ -194,7 +194,12 @@
             statusEl.textContent = "请求中...";
 
             fetchExams().then(function (rawItems) {
-                var results = rawItems.map(extractItem);
+                // 前端过滤：只保留当前学期的考试
+                var targetXqm = getCurrentXqm();
+                var semItems = rawItems.filter(function (item) {
+                    return String(item.xqm) === targetXqm;
+                });
+                var results = semItems.map(extractItem);
                 countEl.textContent = results.length;
                 renderTable(tableBody, results);
                 statusEl.textContent = "抓取完成！共 " + results.length + " 场考试";
