@@ -163,6 +163,9 @@
                 return;
             }
 
+            // 先弹数量，确认是数据问题还是显示截断
+            alert("API 返回原始记录数: " + allItems.length);
+
             var results = allItems.map(extractItem);
             var output = JSON.stringify(results, null, 2);
 
