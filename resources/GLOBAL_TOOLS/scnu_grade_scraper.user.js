@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         华师（正方）成绩抓取调试工具
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  在华南师范大学正方教务系统成绩页面添加"抓取成绩"按钮，输出 JSON 到控制台
+// @version      1.1
+// @description  在华南师范大学正方教务系统成绩页面添加"抓取成绩"按钮，以表格展示抓取结果
 // @author       You
 // @match        https://jwxt.scnu.edu.cn/cjcx/cjcx_cxDgXscj.html*
 // @icon         https://www.scnu.edu.cn/favicon.ico
@@ -39,7 +39,6 @@
 
     function fetchOffset(offset) {
         var params = getQueryParams(offset);
-        console.log("[抓取] offset=" + offset);
 
         return fetch(REQUEST_URL, {
             method: "POST",
@@ -82,25 +81,27 @@
     /* ---------- 主流程 ---------- */
 
     function fetchAllScores() {
-        console.log("[抓取] 开始...");
-
         var allRawData = [];
         var offset = 0;
         var pageCount = 0;
+        var statusEl = document.getElementById("gm_status");
+        var tableBody = document.getElementById("gm_body");
+        var countEl = document.getElementById("gm_count");
+
+        statusEl.textContent = "抓取中...";
 
         function next() {
             if (pageCount >= MAX_PAGES) {
-                console.warn("[抓取] 已达最大页数");
+                statusEl.textContent = "已达最大页数 " + MAX_PAGES + "，停止";
                 return Promise.resolve();
             }
             return fetchOffset(offset).then(function (items) {
                 if (!items || items.length === 0) {
-                    console.log("[抓取] offset=" + offset + " 无数据，结束");
+                    statusEl.textContent = "offset=" + offset + " 无数据，结束";
                     return;
                 }
                 pageCount++;
 
-                // 去重
                 var seen = {};
                 for (var i = 0; i < allRawData.length; i++) {
                     var k = allRawData[i].kcmc || allRawData[i].bh || "";
@@ -115,11 +116,11 @@
                         added++;
                     }
                 }
-                console.log("[抓取] offset=" + offset + " → " + items.length +
-                            " 条，新增 " + added + " 条");
+                statusEl.textContent = "第 " + pageCount + " 页 offset=" + offset +
+                    " 返回 " + items.length + " 条，新增 " + added + " 条";
 
                 if (added === 0) {
-                    console.log("[抓取] 全是重复，完毕");
+                    statusEl.textContent = "数据已全部获取完毕！共 " + allRawData.length + " 条";
                     return;
                 }
                 offset += PAGE_SIZE;
@@ -129,25 +130,92 @@
 
         return next().then(function () {
             var results = allRawData.map(extractItem);
-            console.log("[抓取] 共 " + results.length + " 条");
-            console.table(results);
-            alert("共抓取到 " + results.length + " 条成绩，请在控制台查看 JSON");
+            countEl.textContent = results.length;
+            renderTable(tableBody, results);
+            statusEl.textContent = "抓取完成！共 " + results.length + " 条";
             return results;
         }).catch(function (err) {
-            console.error("[抓取] 失败:", err);
-            alert("抓取失败: " + err.message);
+            statusEl.textContent = "失败: " + err.message;
         });
+    }
+
+    /* ---------- 渲染表格 ---------- */
+
+    function renderTable(tbody, data) {
+        tbody.innerHTML = "";
+        if (data.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='4' style='text-align:center;color:#999;'>无数据</td></tr>";
+            return;
+        }
+        for (var i = 0; i < data.length; i++) {
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+                "<td>" + (i + 1) + "</td>" +
+                "<td>" + escapeHtml(data[i].courseName) + "</td>" +
+                "<td>" + escapeHtml(data[i].credit) + "</td>" +
+                "<td>" + escapeHtml(data[i].score) + "</td>" +
+                "<td>" + escapeHtml(data[i].gpa) + "</td>";
+            tbody.appendChild(tr);
+        }
+    }
+
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
     }
 
     /* ---------- 界面注入 ---------- */
 
-    function injectButton() {
+    function injectUI() {
+        // 创建结果面板容器
+        var panel = document.createElement("div");
+        panel.id = "gm_panel";
+        panel.style.cssText =
+            "position:fixed;top:60px;right:20px;width:700px;max-height:80vh;" +
+            "background:#fff;border:1px solid #ccc;border-radius:8px;" +
+            "box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:9999;" +
+            "display:flex;flex-direction:column;font:14px/1.5 'Microsoft YaHei',sans-serif;";
+
+        panel.innerHTML =
+            '<div style="padding:10px 15px;background:#0770cd;color:#fff;' +
+            'border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center;">' +
+            '<span style="font-weight:bold;">成绩抓取结果 (<span id="gm_count">0</span> 条)</span>' +
+            '<button id="gm_close" style="background:none;border:none;color:#fff;' +
+            'font-size:20px;cursor:pointer;">×</button>' +
+            '</div>' +
+            '<div style="padding:8px 15px;background:#f5f5f5;border-bottom:1px solid #eee;' +
+            'font-size:13px;color:#666;" id="gm_status">就绪</div>' +
+            '<div style="overflow:auto;flex:1;">' +
+            '<table style="width:100%;border-collapse:collapse;">' +
+            '<thead><tr style="background:#f0f0f0;">' +
+            '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ddd;width:40px;">#</th>' +
+            '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ddd;">课程名称</th>' +
+            '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ddd;width:60px;">学分</th>' +
+            '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ddd;width:70px;">成绩</th>' +
+            '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ddd;width:70px;">绩点</th>' +
+            '</tr></thead>' +
+            '<tbody id="gm_body"></tbody>' +
+            '</table>' +
+            '</div>';
+
+        document.body.appendChild(panel);
+
+        // 关闭按钮
+        document.getElementById("gm_close").onclick = function () {
+            panel.style.display = panel.style.display === "none" ? "" : "none";
+        };
+
+        // 按钮注入
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "btn btn-primary btn-sm";
-        btn.style.cssText = "margin-left: 10px;";
+        btn.style.cssText = "margin-left:10px;";
         btn.textContent = "抓取成绩";
         btn.onclick = function () {
+            panel.style.display = "";
             btn.disabled = true;
             btn.textContent = "抓取中...";
             fetchAllScores().finally(function () {
@@ -156,19 +224,15 @@
             });
         };
 
-        // 放在查询按钮旁边
         var searchBtn = document.getElementById("search_go");
         if (searchBtn && searchBtn.parentNode) {
             searchBtn.parentNode.appendChild(btn);
-        } else {
-            var container = document.querySelector(".container") || document.body;
-            container.insertBefore(btn, container.firstChild);
         }
     }
 
     if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", injectButton);
+        document.addEventListener("DOMContentLoaded", injectUI);
     } else {
-        injectButton();
+        injectUI();
     }
 })();
