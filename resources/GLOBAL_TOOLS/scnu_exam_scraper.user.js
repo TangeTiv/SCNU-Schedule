@@ -201,15 +201,22 @@
             statusEl.textContent = "请求中...";
 
             fetchExams().then(function (rawItems) {
-                // 前端过滤：只保留当前学期的考试
+                // 按学期名过滤（ksmc 含 "（2）" 为第2学期）
                 var targetXqm = getCurrentXqm();
+                var semLabel = "（" + (targetXqm === "3" ? "1" : targetXqm === "12" ? "2" : "3") + "）";
                 var semItems = rawItems.filter(function (item) {
-                    return String(item.xqm) === targetXqm;
+                    return (item.ksmc || "").indexOf(semLabel) !== -1;
                 });
+                // 如果 ksmc 过滤无效，回退到 xqm 字段比较
+                if (semItems.length === 0 && rawItems.length > 0) {
+                    semItems = rawItems.filter(function (item) {
+                        return String(item.xqm) === targetXqm;
+                    });
+                }
                 var results = semItems.map(extractItem);
                 countEl.textContent = results.length;
                 renderTable(tableBody, results);
-                statusEl.textContent = "抓取完成！共 " + results.length + " 场考试";
+                statusEl.textContent = "抓取完成！共 " + results.length + " 场考试（原始 " + rawItems.length + " 条）";
             }).catch(function (err) {
                 statusEl.textContent = "失败: " + err.message;
             }).finally(function () {
