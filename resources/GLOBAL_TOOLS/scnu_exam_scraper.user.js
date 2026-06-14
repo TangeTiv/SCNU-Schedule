@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         华师（正方）考试信息抓取工具
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  在华南师范大学正方教务系统考试安排页面抓取考试信息
 // @author       You
 // @match        https://jwxt.scnu.edu.cn/kwgl/kscx_cxXsksxxIndex.html*
@@ -14,18 +14,14 @@
 
     var REQUEST_URL = "/kwgl/kscx_cxXsksxxIndex.html?doType=query&gnmkdm=N358105";
 
-    /* ---------- 参数 ---------- */
-
-    function getCurrentXqm() {
-        var el = document.querySelector('[name="xqm"]') || document.getElementById("xqm");
-        return (el && el.value) || "12";
-    }
-
     function getQueryParams() {
         var p = new URLSearchParams();
-        var xnmEl = document.querySelector('[name="xnm"]');
+
+        // 考试页面字段名带 cx_ 前缀
+        var xnmEl = document.getElementById("cx_xnm");
+        var xqmEl = document.getElementById("cx_xqm");
         p.set("xnm", xnmEl ? xnmEl.value : "");
-        p.set("xqm", getCurrentXqm());
+        p.set("xqm", xqmEl ? xqmEl.value : "");
         p.set("ksmcdmb_id", "");
         p.set("kch", "");
         p.set("kc", "");
@@ -38,10 +34,10 @@
         p.set("queryModel.sortName", " ");
         p.set("queryModel.sortOrder", "asc");
         p.set("time", "1");
+
+        console.log("[抓取考试] xnm=" + p.get("xnm") + " xqm=" + p.get("xqm"));
         return p;
     }
-
-    /* ---------- 请求 ---------- */
 
     function fetchExams() {
         return fetch(REQUEST_URL, {
@@ -56,32 +52,31 @@
             if (!r.ok) throw new Error("HTTP " + r.status);
             return r.json();
         }).then(function (data) {
-            return data.items && Array.isArray(data.items) ? data.items
+            var items = data.items && Array.isArray(data.items) ? data.items
                 : data.rows && Array.isArray(data.rows) ? data.rows
                 : Array.isArray(data) ? data
                 : [];
+            console.log("[抓取考试] 返回 " + items.length + " 条");
+            return items;
         });
     }
 
-    /* ---------- 提取 ---------- */
-
-    function extractItem(raw) {
-        if (raw.cell && Array.isArray(raw.cell)) {
-            return {
-                courseName: String(raw.cell[0] || "").trim(),
-                examDate: String(raw.cell[1] || "").trim(),
-                location: String(raw.cell[2] || "").trim(),
-                examType: String(raw.cell[3] || "").trim(),
-                teacher: "", credit: ""
-            };
-        }
+    function extractItem(r) {
+        if (r.cell) return {
+            courseName: String(r.cell[0] || "").trim(),
+            examDate: String(r.cell[1] || "").trim(),
+            location: String(r.cell[2] || "").trim(),
+            examType: String(r.cell[3] || "").trim(),
+            teacher: "",
+            credit: ""
+        };
         return {
-            courseName: (raw.kcmc || "").trim(),
-            examDate: (raw.kssj || "").trim(),
-            location: ((raw.cdmc || "") + " " + (raw.cdxqmc || "")).trim(),
-            examType: (raw.khfs || raw.ksfs || "").trim(),
-            teacher: (raw.jsxx || "").trim(),
-            credit: (raw.xf || "").toString().trim()
+            courseName: (r.kcmc || "").trim(),
+            examDate: (r.kssj || "").trim(),
+            location: ((r.cdmc || "") + " " + (r.cdxqmc || "")).trim(),
+            examType: (r.khfs || r.ksfs || "").trim(),
+            teacher: (r.jsxx || "").trim(),
+            credit: (r.xf || "").toString().trim()
         };
     }
 
@@ -95,17 +90,14 @@
         }
         for (var i = 0; i < data.length; i++) {
             var d = data[i];
-            var timeHtml = d.examDate.replace(/\(/, "<br>(");
-            tbody.innerHTML +=
-                "<tr>" +
+            tbody.innerHTML += "<tr>" +
                 "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + (i + 1) + "</td>" +
                 "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + esc(d.courseName) + "</td>" +
-                "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + timeHtml + "</td>" +
+                "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + d.examDate.replace(/\(/, "<br>(") + "</td>" +
                 "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + esc(d.location) + "</td>" +
                 "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + esc(d.examType) + "</td>" +
                 "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + esc(d.credit) + "</td>" +
-                "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + esc(d.teacher) + "</td>" +
-                "</tr>";
+                "<td style='padding:6px 10px;border-bottom:1px solid #eee;'>" + esc(d.teacher) + "</td></tr>";
         }
     }
 
@@ -144,7 +136,7 @@
         document.getElementById("gm_close").onclick = function () {
             panel.style.display = panel.style.display === "none" ? "" : "none";
         };
-        document.getElementById("gm_copy").onclick = function () {
+        document.getElementById("gm_copy").onclick = function() {
             var rows = document.querySelectorAll("#gm_body tr");
             var data = [];
             for (var i = 0; i < rows.length; i++) {
@@ -176,24 +168,10 @@
             var countEl = document.getElementById("gm_count");
 
             fetchExams().then(function (items) {
-                statusEl.textContent = "API 返回 " + items.length + " 条，正在过滤...";
-
-                // 按学期值过滤
-                var target = getCurrentXqm();
-                var filtered = items.filter(function (v) { return String(v.xqm) === target; });
-
-                // 如果过滤完是 0 但原始数据有，显示原始数据（并提示）
-                if (filtered.length === 0 && items.length > 0) {
-                    filtered = items;
-                    statusEl.textContent = "注意：学期过滤未命中，显示全部 " + items.length + " 条";
-                } else {
-                    statusEl.textContent = "共 " + filtered.length + " 场考试（第 " +
-                        (target === "3" ? "1" : target === "12" ? "2" : "3") + " 学期）";
-                }
-
-                var results = filtered.map(extractItem);
+                var results = items.map(extractItem);
                 countEl.textContent = results.length;
                 renderTable(bodyEl, results);
+                statusEl.textContent = "共 " + results.length + " 场考试";
             }).catch(function (err) {
                 statusEl.textContent = "失败: " + err.message;
             }).finally(function () {
