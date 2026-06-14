@@ -17,10 +17,12 @@
     function getQueryParams() {
         var params = new URLSearchParams();
 
-        var xnmEl = document.getElementById("xnm");
-        var xqmEl = document.getElementById("xqm");
+        // 从表单中读取选中的学年和学期（使用 name 或 id 查找）
+        var xnmEl = document.querySelector('[name="xnm"]') || document.getElementById("xnm");
+        var xqmEl = document.querySelector('[name="xqm"]') || document.getElementById("xqm");
         params.set("xnm", xnmEl ? xnmEl.value : "");
         params.set("xqm", xqmEl ? xqmEl.value : "");
+        console.log("[抓取考试] 当前选中 xnm=" + params.get("xnm") + " xqm=" + params.get("xqm"));
         params.set("ksmcdmb_id", "");
         params.set("kch", "");
         params.set("kc", "");
