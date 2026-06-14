@@ -14,19 +14,21 @@
 
     var REQUEST_URL = "/kwgl/kscx_cxXsksxxIndex.html?doType=query&gnmkdm=N358105";
 
+    // 获取当前应该显示的学期值
+    function getCurrentXqm() {
+        var el = document.querySelector('[name="xqm"]') || document.getElementById("xqm");
+        var val = el ? el.value : "";
+        if (val) return val;
+        // 表单里选了"全部"时，默认取第 2 学期
+        return "12";
+    }
+
     function getQueryParams() {
         var params = new URLSearchParams();
 
-        // 从表单中读取选中的学年和学期
         var xnmEl = document.querySelector('[name="xnm"]') || document.getElementById("xnm");
-        var xqmEl = document.querySelector('[name="xqm"]') || document.getElementById("xqm");
-        var xnm = xnmEl ? xnmEl.value : "";
-        var xqm = xqmEl ? xqmEl.value : "";
-        // 如果学期为空（选了"全部"），默认取第 2 学期（当前考试季）
-        if (!xqm) xqm = "12";
-        params.set("xnm", xnm);
-        params.set("xqm", xqm);
-        console.log("[抓取考试] 当前选中 xnm=" + xnm + " xqm=" + xqm);
+        params.set("xnm", xnmEl ? xnmEl.value : "");
+        params.set("xqm", getCurrentXqm());
         params.set("ksmcdmb_id", "");
         params.set("kch", "");
         params.set("kc", "");
@@ -63,8 +65,14 @@
                 : data.rows && Array.isArray(data.rows) ? data.rows
                 : Array.isArray(data) ? data
                 : [];
-            console.log("[抓取考试] 返回", items.length, "条, totalResult:", data.totalResult);
-            return items;
+            // 前端过滤：只保留当前学期的考试
+            var targetXqm = getCurrentXqm();
+            var filtered = items.filter(function (item) {
+                return String(item.xqm) === targetXqm;
+            });
+            console.log("[抓取考试] API 返回", items.length, "条, 过滤后",
+                        filtered.length, "条 (xqm=" + targetXqm + ")");
+            return filtered;
         });
     }
 
