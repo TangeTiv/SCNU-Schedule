@@ -3,6 +3,7 @@ package com.xingheyuzhuan.shiguangschedule.ui.campus
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -77,6 +78,7 @@ fun CampusScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
+            contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             // 欢迎卡片

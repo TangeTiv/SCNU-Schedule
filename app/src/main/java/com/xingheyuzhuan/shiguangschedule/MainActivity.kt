@@ -32,7 +32,6 @@ import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusViewModel
 import com.xingheyuzhuan.shiguangschedule.ui.campus.SyncSelectionScreen
-import com.xingheyuzhuan.shiguangschedule.ui.campus.SyncOptions
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.WeeklyScheduleScreen
 import com.xingheyuzhuan.shiguangschedule.ui.schoolselection.list.AdapterSelectionScreen
 import com.xingheyuzhuan.shiguangschedule.ui.schoolselection.list.SchoolSelectionListScreen
