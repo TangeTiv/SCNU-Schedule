@@ -560,5 +560,6 @@
     <string name="campus_school_name">华南师范大学</string>
     <string name="campus_school_subtitle">一站式专属教务服务</string>
     <string name="campus_week_info">第 %1$d 周 · %2$s</string>
+    <string name="campus_today_overview">今日速览</string>
 
 </resources>

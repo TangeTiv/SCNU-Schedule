@@ -69,7 +69,7 @@ data class ScheduleGridStyle(
         internal val DEFAULT_BLOCK_ALPHA = 1f
         internal val DEFAULT_FONT_SCALE = 1f
 
-        internal val DEFAULT_COLOR_MAPS = listOf(
+        val DEFAULT_COLOR_MAPS = listOf(
             DualColor(light = Color(0xFFFFCC99), dark = Color(0xFF663300)),
             DualColor(light = Color(0xFFFFE699), dark = Color(0xFF664D00)),
             DualColor(light = Color(0xFFE6FF99), dark = Color(0xFF4D6600)),

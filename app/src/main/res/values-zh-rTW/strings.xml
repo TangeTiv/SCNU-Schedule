@@ -558,5 +558,6 @@
     <string name="campus_school_name">華南師範大學</string>
     <string name="campus_school_subtitle">一站式專屬教務服務</string>
     <string name="campus_week_info">第 %1$d 週 · %2$s</string>
+    <string name="campus_today_overview">今日速覽</string>
 
 </resources>

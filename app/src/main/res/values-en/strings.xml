@@ -558,5 +558,6 @@
     <string name="campus_school_name">South China Normal University</string>
     <string name="campus_school_subtitle">One-stop Academic Services</string>
     <string name="campus_week_info">Week %1$d · %2$s</string>
+    <string name="campus_today_overview">Today\'s Glance</string>
 
 </resources>
