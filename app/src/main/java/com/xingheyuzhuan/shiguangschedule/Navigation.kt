@@ -22,6 +22,7 @@ sealed interface Destination : NavKey {
     // --- 一级导航页面（底栏对应页面，通常无滑动动画） ---
 
     @Serializable data object CourseSchedule : Destination
+    @Serializable data object Campus : Destination
     @Serializable data object Settings : Destination
     @Serializable data object TodaySchedule : Destination
 
@@ -42,6 +43,7 @@ sealed interface Destination : NavKey {
     @Serializable data object CourseManagementList : Destination
     @Serializable data object StyleSettings : Destination
     @Serializable data object ThemeSettings : Destination
+    @Serializable data object SyncSelection : Destination
     // --- 动态传参页面 ---
 
     @Serializable
@@ -74,5 +76,6 @@ sealed interface Destination : NavKey {
  */
 val Destination.isMainScreen: Boolean
     get() = this is Destination.CourseSchedule ||
+            this is Destination.Campus ||
             this is Destination.Settings ||
             this is Destination.TodaySchedule

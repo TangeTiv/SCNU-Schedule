@@ -3,9 +3,11 @@ package com.xingheyuzhuan.shiguangschedule.ui.components
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewWeek
 import androidx.compose.material3.*
@@ -37,6 +39,7 @@ fun BottomNavigationBar(
     val navItems = listOf(
         Triple(stringResource(R.string.nav_today_schedule), Destination.TodaySchedule, Icons.Filled.ViewAgenda to Icons.Outlined.ViewAgenda),
         Triple(stringResource(R.string.nav_course_schedule), Destination.CourseSchedule, Icons.Filled.ViewWeek to Icons.Outlined.ViewWeek),
+        Triple(stringResource(R.string.nav_campus), Destination.Campus, Icons.Filled.School to Icons.Outlined.School),
         Triple(stringResource(R.string.nav_settings), Destination.Settings, Icons.Filled.AccountCircle to Icons.Outlined.AccountCircle)
     )
 
