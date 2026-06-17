@@ -29,9 +29,14 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
+import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusScreen
+import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusViewModel
+import com.xingheyuzhuan.shiguangschedule.ui.campus.SyncSelectionScreen
+import com.xingheyuzhuan.shiguangschedule.ui.campus.SyncOptions
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.WeeklyScheduleScreen
 import com.xingheyuzhuan.shiguangschedule.ui.schoolselection.list.AdapterSelectionScreen
 import com.xingheyuzhuan.shiguangschedule.ui.schoolselection.list.SchoolSelectionListScreen
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.xingheyuzhuan.shiguangschedule.ui.schoolselection.web.WebViewScreen
 import com.xingheyuzhuan.shiguangschedule.ui.settings.SettingsScreen
 import com.xingheyuzhuan.shiguangschedule.ui.settings.SettingsViewModel
@@ -174,6 +179,7 @@ fun ScreenContent(
 ) {
     when (targetDest) {
         Destination.CourseSchedule -> WeeklyScheduleScreen(onNavigate, onBack)
+        Destination.Campus -> CampusScreen(onNavigate, onBack)
         Destination.Settings -> SettingsScreen(onNavigate, onBack)
         Destination.TodaySchedule -> TodayScheduleScreen(onNavigate, onBack)
         Destination.TimeSlotSettings -> TimeSlotManagementScreen(onNavigate, onBack)
@@ -191,6 +197,16 @@ fun ScreenContent(
         Destination.StyleSettings -> StyleSettingsScreen(onBack)
         Destination.QuickDelete -> QuickDeleteScreen(onBack)
         Destination.ThemeSettings -> ThemeSettingsScreen(onBack = onBack)
+        Destination.SyncSelection -> {
+            val campusViewModel: CampusViewModel = hiltViewModel()
+            SyncSelectionScreen(
+                onNavigate = onNavigate,
+                onBack = onBack,
+                onSyncStart = { options ->
+                    campusViewModel.onSyncStart(options, onNavigate)
+                }
+            )
+        }
 
         // 处理 data class (带参数的目的地)
         is Destination.AdapterSelection -> AdapterSelectionScreen(

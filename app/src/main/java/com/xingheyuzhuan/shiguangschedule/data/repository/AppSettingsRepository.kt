@@ -90,6 +90,19 @@ class AppSettingsRepository @Inject constructor(
         }
     }
 
+    /**
+     * 持久化校园模块同步选项。
+     * AndroidBridge 在执行 JS 导入脚本前读取这些开关，
+     * 决定是否抓取课表 / 成绩 / 考试数据。
+     */
+    suspend fun setSyncOptions(courses: Boolean, grades: Boolean, exams: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[AppSettingsModel.KEY_SYNC_COURSES] = courses
+            prefs[AppSettingsModel.KEY_SYNC_GRADES] = grades
+            prefs[AppSettingsModel.KEY_SYNC_EXAMS] = exams
+        }
+    }
+
     // 课表具体物理配置 (由 Room 驱动)
 
     /**

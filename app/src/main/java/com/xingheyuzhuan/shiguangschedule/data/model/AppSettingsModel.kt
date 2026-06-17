@@ -137,6 +137,11 @@ data class AppSettingsModel(
         val KEY_CUSTOM_LIGHT_PRIMARY = longPreferencesKey("custom_light_primary")
         val KEY_CUSTOM_DARK_PRIMARY = longPreferencesKey("custom_dark_primary")
 
+        // 校园模块 — 同步选项开关（供 WebView JS 通过 AndroidBridge 读取）
+        val KEY_SYNC_COURSES = booleanPreferencesKey("sync_courses")
+        val KEY_SYNC_GRADES = booleanPreferencesKey("sync_grades")
+        val KEY_SYNC_EXAMS = booleanPreferencesKey("sync_exams")
+
         /**
          * 从 Preferences 中解析出 AppSettingsModel
          */
