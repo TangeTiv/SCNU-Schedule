@@ -21,12 +21,15 @@ import kotlinx.coroutines.launch
         Course::class,
         CourseWeek::class,
         TimeSlot::class,
-        CourseTableConfig::class
+        CourseTableConfig::class,
+        GradeEntity::class,
+        ExamEntity::class
     ],
-    version = 5,
+    version = 6,
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
-        AutoMigration(from = 4, to = 5, spec = MainAppDatabase.RemoveAppSettingsSpec::class)
+        AutoMigration(from = 4, to = 5, spec = MainAppDatabase.RemoveAppSettingsSpec::class),
+        AutoMigration(from = 5, to = 6)
     ],
     exportSchema = true
 )
@@ -41,6 +44,8 @@ abstract class MainAppDatabase : RoomDatabase() {
     abstract fun courseWeekDao(): CourseWeekDao
     abstract fun timeSlotDao(): TimeSlotDao
     abstract fun courseTableConfigDao(): CourseTableConfigDao
+    abstract fun gradeDao(): GradeDao
+    abstract fun examDao(): ExamDao
 
     companion object {
         @Volatile

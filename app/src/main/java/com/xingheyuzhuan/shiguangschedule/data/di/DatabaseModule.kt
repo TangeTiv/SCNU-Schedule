@@ -5,6 +5,8 @@ import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfigDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeekDao
+import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamDao
+import com.xingheyuzhuan.shiguangschedule.data.db.main.GradeDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.MainAppDatabase
 import com.xingheyuzhuan.shiguangschedule.data.db.main.TimeSlotDao
 import com.xingheyuzhuan.shiguangschedule.data.db.widget.WidgetAppSettingsDao
@@ -52,6 +54,14 @@ object DatabaseModule {
 
     @Provides
     fun provideCourseWeekDao(db: MainAppDatabase): CourseWeekDao = db.courseWeekDao()
+
+    @Provides
+    @Singleton
+    fun provideGradeDao(db: MainAppDatabase): GradeDao = db.gradeDao()
+
+    @Provides
+    @Singleton
+    fun provideExamDao(db: MainAppDatabase): ExamDao = db.examDao()
 
     // --- 3. 提供小组件数据库 (WidgetDatabase) 的 DAO ---
 
