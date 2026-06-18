@@ -156,10 +156,9 @@ fun SyncSelectionScreen(
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
             ) {
-                // 内容区域（占据剩余空间）
+                // 内容区域
                 Column(
                     modifier = Modifier
-                        .weight(1f)
                         .padding(horizontal = 24.dp)
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
