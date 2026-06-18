@@ -31,6 +31,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusViewModel
+import com.xingheyuzhuan.shiguangschedule.ui.campus.ScnuVerificationScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.SyncSelectionScreen
 import com.xingheyuzhuan.shiguangschedule.ui.schedule.WeeklyScheduleScreen
 import com.xingheyuzhuan.shiguangschedule.ui.schoolselection.list.AdapterSelectionScreen
@@ -196,6 +197,7 @@ fun ScreenContent(
         Destination.StyleSettings -> StyleSettingsScreen(onBack)
         Destination.QuickDelete -> QuickDeleteScreen(onBack)
         Destination.ThemeSettings -> ThemeSettingsScreen(onBack = onBack)
+        Destination.ScnuVerification -> ScnuVerificationScreen(onNavigate, onBack)
         Destination.SyncSelection -> {
             val campusViewModel: CampusViewModel = hiltViewModel()
             SyncSelectionScreen(
