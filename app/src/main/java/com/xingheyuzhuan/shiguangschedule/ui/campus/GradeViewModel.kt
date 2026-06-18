@@ -42,7 +42,7 @@ class GradeViewModel @Inject constructor(
     // --- 学期列表（去重 + 降序，无副作用） ---
 
     val availableTerms: StateFlow<List<String>> = _allGrades.map { grades ->
-        grades.map { "${it.xnmmc} ${it.xqmmc}" }
+        grades.map { "${it.xnmmc} ${termLabel(it.xqmmc)}" }
             .distinct()
             .sortedDescending()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -68,7 +68,7 @@ class GradeViewModel @Inject constructor(
     ) { grades, terms, selected ->
         val effectiveTerm = selected ?: terms.firstOrNull() ?: ""
         if (effectiveTerm.isBlank()) grades
-        else grades.filter { "${it.xnmmc} ${it.xqmmc}" == effectiveTerm }
+        else grades.filter { "${it.xnmmc} ${termLabel(it.xqmmc)}" == effectiveTerm }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // --- 总平均绩点（全学期） ---
@@ -87,7 +87,7 @@ class GradeViewModel @Inject constructor(
         if (effectiveTerm.isBlank()) {
             calculateGpa(grades)
         } else {
-            calculateGpa(grades.filter { "${it.xnmmc} ${it.xqmmc}" == effectiveTerm })
+            calculateGpa(grades.filter { "${it.xnmmc} ${termLabel(it.xqmmc)}" == effectiveTerm })
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0f)
 
@@ -99,6 +99,18 @@ class GradeViewModel @Inject constructor(
      */
     fun selectTerm(term: String?) {
         _selectedTerm.value = term
+    }
+
+    // --- 纯函数：学期标签映射 ---
+
+    /**
+     * 将学期编码（如 "1", "第一学期"）统一映射为可读的学期标签 "第一学期"。
+     */
+    private fun termLabel(raw: String): String = when (raw.trim()) {
+        "1" -> "第一学期"
+        "2" -> "第二学期"
+        "3" -> "第三学期"
+        else -> raw
     }
 
     // --- 纯函数：GPA 计算 ---
