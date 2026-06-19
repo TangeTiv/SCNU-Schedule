@@ -10,7 +10,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringArrayResource
@@ -135,36 +134,44 @@ private fun DayHeader(
     textColor: Color,
     subTextColor: Color
 ) {
-    Row(Modifier.fillMaxWidth().height(style.dayHeaderHeight)) {
-        Box(
-            Modifier
-                .width(style.timeColumnWidth)
-                .fillMaxHeight()
-                .drawBehind {
-                    if (!style.hideGridLines) {
-                        // 右侧线与底部线
-                        drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
-                        drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1f)
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = currentYear,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = subTextColor
-            )
+    val density = LocalDensity.current
+    val headerHeightPx = with(density) { style.dayHeaderHeight.toPx() }
+    val timeColumnWidthPx = with(density) { style.timeColumnWidth.toPx() }
+
+    Box(Modifier.fillMaxWidth().height(style.dayHeaderHeight)) {
+        // 统一 Canvas 绘制所有表头分隔线
+        Canvas(Modifier.fillMaxSize()) {
+            val cellWidth = (size.width - timeColumnWidthPx) / displayDays.size
+            // 竖线：年份列右侧
+            drawLine(lineColor, Offset(timeColumnWidthPx, 0f), Offset(timeColumnWidthPx, size.height), 1f)
+            // 竖线：每日列右侧
+            for (i in 1 until displayDays.size) {
+                val x = timeColumnWidthPx + cellWidth * i
+                drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), 1f)
+            }
+            // 底部横线
+            drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1f)
         }
-        displayDays.forEachIndexed { index, day ->
-            Box(Modifier.weight(1f).fillMaxHeight()
-                .background(if (index == todayIndex) MaterialTheme.colorScheme.primaryContainer.copy(0.4f) else Color.Transparent)
-                .drawBehind {
-                    if (!style.hideGridLines) {
-                        drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
-                        drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1f)
-                    }
-                }, contentAlignment = Alignment.Center) {
+
+        // 内容层
+        Row(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .width(style.timeColumnWidth)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = currentYear,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = subTextColor
+                )
+            }
+            displayDays.forEachIndexed { index, day ->
+                Box(Modifier.weight(1f).fillMaxHeight()
+                    .background(if (index == todayIndex) MaterialTheme.colorScheme.primaryContainer.copy(0.4f) else Color.Transparent),
+                    contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // 统一使用 onSurface，不加高亮判断
                     Text(
@@ -197,24 +204,34 @@ private fun TimeColumn(
     textColor: Color,
     subTextColor: Color
 ) {
-    Column(modifier.width(style.timeColumnWidth)) {
-        timeSlots.forEachIndexed { index, slot ->
-            val isCurrentSection = index + 1 == currentSectionIndex
+    val density = LocalDensity.current
+    val sectionHeightPx = with(density) { style.sectionHeight.toPx() }
 
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(style.sectionHeight)
-                    .clickable { onTimeSlotClicked() }
-                    .background(if (isCurrentSection) MaterialTheme.colorScheme.primaryContainer.copy(0.4f) else Color.Transparent)
-                    .drawBehind {
-                        if (!style.hideGridLines) {
-                            drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
-                            drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1f)
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
+    Box(modifier.width(style.timeColumnWidth)) {
+        // 统一 Canvas 绘制时间列分隔线
+        Canvas(Modifier.fillMaxSize()) {
+            // 右侧竖线
+            drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
+            // 横线
+            for (row in 1..timeSlots.size) {
+                val y = sectionHeightPx * row
+                drawLine(lineColor, Offset(0f, y), Offset(size.width, y), 1f)
+            }
+        }
+
+        // 内容层
+        Column(Modifier.fillMaxSize()) {
+            timeSlots.forEachIndexed { index, slot ->
+                val isCurrentSection = index + 1 == currentSectionIndex
+
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(style.sectionHeight)
+                        .clickable { onTimeSlotClicked() }
+                        .background(if (isCurrentSection) MaterialTheme.colorScheme.primaryContainer.copy(0.4f) else Color.Transparent),
+                    contentAlignment = Alignment.Center
+                ) {
                 val h = maxHeight // 当前格子的高度
 
                 Column(
