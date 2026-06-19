@@ -72,9 +72,9 @@ data class CourseResponse(
 @Serializable
 data class CourseItem(
     @SerialName("kcmc") val kcmc: String = "",     // 课程名称
-    @SerialName("jsxm") val jsxm: String = "",     // 任课教师
+    @SerialName("xm") val jsxm: String = "",       // 任课教师 (JSON键为 xm)
     @SerialName("xqj") val xqj: String = "",       // 星期几 (1=周一)
-    @SerialName("jc") val jc: String = "",         // 节次，如 "1-2"
-    @SerialName("qsjsz") val zcd: String = "",     // 周次 (JSON 键为 qsjsz)，如 "1-16周(单)"
+    @SerialName("jcs") val jc: String = "",        // 节次，纯数字 "1-2" (JSON键为 jcs)
+    @SerialName("zcd") val zcd: String = "",       // 周次，如 "1-16周(单)"
     @SerialName("cdmc") val cdmc: String = ""      // 教室/场地
 )
