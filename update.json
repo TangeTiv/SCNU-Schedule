@@ -4,7 +4,7 @@
     "latestVersionName": "1.0.1",
     "changelog": "🎉 v1.0.1 更新\n- 新增首次启动引导弹窗\n- 预设 111 个学校教务适配脚本，无需联网更新\n- 新增「反馈与建议」入口\n- 新增「校园」启动页选项\n- 内置华南师范大学适配脚本\n- 全新应用图标\n- 修复：APK 升级后 bundled 数据自动刷新",
     "downloadLinks": {
-      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.0.1/app-prod-universal.apk"
+      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.0.1/SCNU_Schedule_v1.0.1.apk"
     }
   },
   "dev": {
@@ -12,7 +12,7 @@
     "latestVersionName": "1.0.1-dev",
     "changelog": "🔧 v1.0.1-dev 更新\n- 新增首次启动引导弹窗\n- 预设 111 个学校教务适配脚本\n- 内置华南师范大学适配脚本\n- 全新应用图标",
     "downloadLinks": {
-      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.0.1/app-dev-universal.apk"
+      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.0.1/SCNU_Schedule_v1.0.1.apk"
     }
   }
 }
