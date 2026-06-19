@@ -168,7 +168,6 @@ fun MoreOptionsScreen(
                     SettingListItem(
                         icon = Icons.Default.Feedback,
                         title = stringResource(R.string.item_feedback),
-                        subtitle = stringResource(R.string.item_feedback_subtitle),
                         onClick = {
                             runCatching {
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wj.qq.com/s2/27078585/b3e3/"))
