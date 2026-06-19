@@ -183,7 +183,7 @@ fun MoreOptionsScreen(
                         icon = Icons.Default.Code,
                         title = stringResource(R.string.item_github_repo),
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/TangeTiv/shiguangschedule"))
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/TangeTiv/SCNU-Schedule"))
                             context.startActivity(intent)
                         }
                     )

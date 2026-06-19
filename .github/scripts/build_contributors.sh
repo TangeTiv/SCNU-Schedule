@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 配置信息
-REPO_APP="XingHeYuZhuan/shiguangschedule"
+REPO_APP="XingHeYuZhuan/SCNU-Schedule"
 REPO_JIAOWU="XingHeYuZhuan/shiguang_warehouse"
 
 API_URL_APP="https://api.github.com/repos/${REPO_APP}/contributors"
