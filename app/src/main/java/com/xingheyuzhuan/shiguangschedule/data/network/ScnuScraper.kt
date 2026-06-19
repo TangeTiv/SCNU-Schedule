@@ -203,6 +203,48 @@ class ScnuScraper @Inject constructor(
             json.decodeFromString<ExamResponse>(body).items
         }
 
+    /**
+     * 获取课程表列表，对应 Python `fetch_schedule()`。
+     * 必须在 [login] 成功后调用。
+     *
+     * @param xnm 学年（空字符串表示当前学年）
+     * @param xqm 学期（空字符串表示当前学期）
+     * @return 课程列表（可能为空）
+     * @throws Exception 网络错误或 JSON 解析失败
+     */
+    suspend fun fetchCourses(xnm: String = "", xqm: String = ""): List<CourseItem> =
+        withContext(Dispatchers.IO) {
+            val apiUrl = "$JWXT_BASE/kbcx/xskbcx_cxXsgrkb.html?gnmkdm=N2151"
+            val formBody = FormBody.Builder()
+                .add("xnm", xnm)
+                .add("xqm", xqm)
+                .add("kzlx", "ck")
+                .add("xsdm", "")
+                .add("kclbdm", "")
+                .add("kclxdm", "")
+                .build()
+            val request = Request.Builder()
+                .url(apiUrl)
+                .header("X-Requested-With", "XMLHttpRequest")
+                .header("Referer", "$JWXT_BASE/")
+                .post(formBody)
+                .build()
+            val body = httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw Exception("课程表 API 请求失败: HTTP ${response.code}")
+                }
+                response.body?.string().orEmpty()
+            }
+            // 防线 3: kbList 空安全 — CourseResponse.items 默认为 emptyList()，
+            // 即使后端返回空 JSON 也不会抛 NPE
+            if (body.isBlank()) return@withContext emptyList()
+            try {
+                json.decodeFromString<CourseResponse>(body).items
+            } catch (e: Exception) {
+                throw Exception("课程表 JSON 解析失败: ${e.message}")
+            }
+        }
+
     // ═══════════════════════════════════════════════════════════════
     // 内部 HTTP 工具（匹配 Python _get / _post 行为）
     // ═══════════════════════════════════════════════════════════════

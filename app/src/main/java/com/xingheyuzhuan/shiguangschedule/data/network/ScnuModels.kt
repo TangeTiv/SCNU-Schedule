@@ -54,3 +54,27 @@ data class ExamItem(
     @SerialName("khfs") val khfs: String = "",        // 考核方式
     @SerialName("kkxy") val kkxy: String = ""         // 开课学院
 )
+
+/**
+ * 课程表查询 API 返回的 JSON 结构。
+ *
+ * `kbList` 为教务系统 JSON 中的实际字段名，即使后端返回空数组也不抛异常。
+ */
+@Serializable
+data class CourseResponse(
+    @SerialName("kbList") val items: List<CourseItem> = emptyList()
+)
+
+/**
+ * 单条课程安排，字段映射自 SCNU 教务系统 `/kbcx/xskbcx_cxXsgrkb.html` JSON API
+ * 的 `kbList[]` 元素。所有字段均为 String，因为后端可能返回空字符串。
+ */
+@Serializable
+data class CourseItem(
+    @SerialName("kcmc") val kcmc: String = "",     // 课程名称
+    @SerialName("jsxm") val jsxm: String = "",     // 任课教师
+    @SerialName("xqj") val xqj: String = "",       // 星期几 (1=周一)
+    @SerialName("jc") val jc: String = "",         // 节次，如 "1-2"
+    @SerialName("qsjsz") val zcd: String = "",     // 周次 (JSON 键为 qsjsz)，如 "1-16周(单)"
+    @SerialName("cdmc") val cdmc: String = ""      // 教室/场地
+)
