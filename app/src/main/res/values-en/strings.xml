@@ -323,7 +323,7 @@
     <string name="a11y_navigate">Navigate</string>
     <string name="a11y_acknowledgment">Acknowledgment</string>
     <string name="label_special_thanks">Special thanks</string>
-    <string name="text_acknowledgment_body">Heartfelt thanks to every developer who contributed to this app and the academic system adapter repository. Your dedication drives continuous improvement!</string>
+    <string name="text_acknowledgment_body">Thanks to all contributors of the original open-source project and this project. Your dedication keeps this project evolving and improving.</string>
     <string name="item_github_repo">Project GitHub repository</string>
     <string name="item_open_source_licenses">View open source licenses</string>
     <string name="title_open_source_licenses">Open source licenses</string>
