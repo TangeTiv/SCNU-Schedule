@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
@@ -138,7 +139,16 @@ class CampusSyncViewModel @Inject constructor(
                 // ── 第 2 步：抓取并写入学期课程表 ──
                 if (syncCourses) {
                     _syncUiState.value = SyncUiState.Loading("正在拉取学期课程表…")
-                    val courseItems = scraper.fetchCourses()
+
+                    // 防线 4: 课表 API 不接受空 xnm/xqm，需根据当前月份计算
+                    // 6-12 月查询当前学年第一学期(3), 1-5 月查询上一年第一学期(3)
+                    val cal = Calendar.getInstance()
+                    val year = cal.get(Calendar.YEAR)
+                    val month = cal.get(Calendar.MONTH) + 1
+                    val xnm = year.toString()
+                    val xqm = if (month in 1..5) "12" else "3"
+
+                    val courseItems = scraper.fetchCourses(xnm = xnm, xqm = xqm)
 
                     if (courseItems.isNotEmpty()) {
                         _syncUiState.value = SyncUiState.Loading("正在写入课程数据…")
