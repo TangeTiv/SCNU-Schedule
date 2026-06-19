@@ -2,10 +2,12 @@ package com.xingheyuzhuan.shiguangschedule.data.network
 
 import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -66,7 +68,8 @@ private const val DEFAULT_EXAM_DURATION_MINUTES = 90L
 fun ExamItem.toCourseEntity(
     targetTableId: String,
     termStartDate: LocalDate,
-    colorInt: Int
+    colorInt: Int,
+    firstDayOfWeek: Int = DayOfWeek.MONDAY.value
 ): Pair<Course, List<CourseWeek>>? {
     // ── 1. 解析 kssj ──
     val match = KSSJ_REGEX.find(kssj) ?: return null
@@ -92,8 +95,12 @@ fun ExamItem.toCourseEntity(
     }
 
     // ── 2. 计算坐标：周次 + 星期 ──
-    val daysBetween = ChronoUnit.DAYS.between(termStartDate, examDate)
-    val weekNumber = (daysBetween / 7).toInt() + 1
+    // 必须与 AppSettingsRepository.getWeekIndexAtDate() 使用相同的对齐算法，
+    // 否则与课表网格的周次计算不一致，导致考试显示在错误的周次。
+    val dayOfWeekEnum = DayOfWeek.of(firstDayOfWeek)
+    val alignedStart = termStartDate.with(TemporalAdjusters.previousOrSame(dayOfWeekEnum))
+    val alignedExam = examDate.with(TemporalAdjusters.previousOrSame(dayOfWeekEnum))
+    val weekNumber = ChronoUnit.WEEKS.between(alignedStart, alignedExam).toInt() + 1
 
     // 时空结界：拒绝跨学期脏数据
     if (weekNumber < 1 || weekNumber > 30) return null

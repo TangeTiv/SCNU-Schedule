@@ -213,6 +213,7 @@ class CampusSyncViewModel @Inject constructor(
                         val termStartDate = config?.semesterStartDate?.let {
                             try { LocalDate.parse(it) } catch (_: Exception) { null }
                         }
+                        val firstDayOfWeek = config?.firstDayOfWeek ?: java.time.DayOfWeek.MONDAY.value
 
                         if (termStartDate != null) {
                             // 安全获取颜色索引：取调色板最后一个颜色，永不越界
@@ -228,7 +229,7 @@ class CampusSyncViewModel @Inject constructor(
                             val courses = mutableListOf<Course>()
                             val weeks = mutableListOf<CourseWeek>()
                             for (item in examItems) {
-                                item.toCourseEntity(targetTableId, termStartDate, examColor)
+                                item.toCourseEntity(targetTableId, termStartDate, examColor, firstDayOfWeek)
                                     ?.let { (c, ws) ->
                                         courses.add(c)
                                         weeks.addAll(ws)
