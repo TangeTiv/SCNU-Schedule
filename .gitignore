@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Gradle files
 .gradle/
 build/
@@ -33,3 +34,13 @@ google-services.json
 # Android Profiling
 *.hprof
 *.dm
+=======
+.idea/*
+!.idea/jsonSchemas.xml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# 忽略适配占位符文件，防止开发者误提交测试代码
+resources/GLOBAL_TOOLS/test.js
+>>>>>>> tange/main

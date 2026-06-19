@@ -1,0 +1,9 @@
+# resources/SCNU/adapters.yaml
+adapters:
+  - adapter_id: "SCNU"
+    adapter_name: "华南师范大学教务"
+    category: "BACHELOR_AND_ASSOCIATE"
+    asset_js_path: "scnu_zhengfang.js"
+    import_url: "https://jwxt.scnu.edu.cn/xtgl/login_slogin.html"
+    maintainer: "Tange"
+    description: "华南师范大学（SCNU）教务系统适配，基于正方教务系统。\n\n登录与导入方式：\n1. 登录教务系统（login_url）\n2. 导航到学生课表查询页面\n3. 选择对应学年学期并查询\n4. 确保课表加载完毕后点击一键导入"
