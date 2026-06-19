@@ -83,7 +83,6 @@ fun CampusScreen(
     campusViewModel: CampusViewModel = hiltViewModel()
 ) {
     val campusState by campusViewModel.campusState.collectAsState()
-    val context = LocalContext.current
 
     Scaffold(
         containerColor = SurfaceBackgroundColor,
@@ -270,6 +269,7 @@ private fun CourseCapsuleRow(courses: List<TodayCourseDisplay>) {
  */
 @Composable
 private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
+    val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ServiceCard(
