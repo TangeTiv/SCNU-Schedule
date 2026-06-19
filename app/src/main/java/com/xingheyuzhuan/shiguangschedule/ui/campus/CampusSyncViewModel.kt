@@ -6,10 +6,20 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
+import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseDao
+import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTable
+import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableDao
+import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
+import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeekDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.GradeDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.toEntity
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuScraper
+import com.xingheyuzhuan.shiguangschedule.data.network.toCourseEntity
+import com.xingheyuzhuan.shiguangschedule.data.network.parseWeeks
+import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
+import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,8 +27,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Named
+import kotlin.random.Random
 
 /**
  * 同步流程的 UI 状态密封接口。
@@ -57,7 +72,13 @@ class CampusSyncViewModel @Inject constructor(
     private val scraper: ScnuScraper,
     private val gradeDao: GradeDao,
     private val examDao: ExamDao,
-    @Named("AppSettings") private val dataStore: DataStore<Preferences>
+    @Named("AppSettings") private val dataStore: DataStore<Preferences>,
+    // ── 课程表同步所需依赖 ──
+    private val courseDao: CourseDao,
+    private val courseWeekDao: CourseWeekDao,
+    private val courseTableDao: CourseTableDao,
+    private val appSettingsRepository: AppSettingsRepository,
+    private val styleSettingsRepository: StyleSettingsRepository
 ) : ViewModel() {
 
     companion object {
@@ -89,12 +110,19 @@ class CampusSyncViewModel @Inject constructor(
      * 整个流程在 [Dispatchers.IO] 中执行，通过 [runCatching] 统一捕获异常，
      * 并通过 [_syncUiState] 实时反馈进度。
      *
-     * @param account  学号
-     * @param password 密码（仅用于本次登录，不持久化）
-     * @param syncGrades 是否需要同步成绩数据
-     * @param syncExams  是否需要同步考试安排
+     * @param account     学号
+     * @param password    密码（仅用于本次登录，不持久化）
+     * @param syncCourses 是否需要同步学期课程表
+     * @param syncGrades  是否需要同步成绩数据
+     * @param syncExams   是否需要同步考试安排
      */
-    fun startSync(account: String, password: String, syncGrades: Boolean, syncExams: Boolean) {
+    fun startSync(
+        account: String,
+        password: String,
+        syncCourses: Boolean,
+        syncGrades: Boolean,
+        syncExams: Boolean
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 // ── 第 1 步：登录统一身份认证 ──
@@ -107,7 +135,50 @@ class CampusSyncViewModel @Inject constructor(
                 }
                 _savedAccount.value = account
 
-                // ── 第 2 步：抓取并写入成绩数据 ──
+                // ── 第 2 步：抓取并写入学期课程表 ──
+                if (syncCourses) {
+                    _syncUiState.value = SyncUiState.Loading("正在拉取学期课程表…")
+                    val courseItems = scraper.fetchCourses()
+
+                    if (courseItems.isNotEmpty()) {
+                        _syncUiState.value = SyncUiState.Loading("正在写入课程数据…")
+
+                        // 1. 确定目标课表 ID
+                        val targetTableId = resolveTargetTableId()
+
+                        // 2. 清空旧课程（ForeignKey.CASCADE 自动清理 course_weeks）
+                        courseDao.deleteCoursesByTableId(targetTableId)
+
+                        // 3. 计算颜色（名称分组 + 轮转配色）
+                        val colorSize =
+                            styleSettingsRepository.styleFlow.first().courseColorMaps.size
+                        val nameToColor = mutableMapOf<String, Int>()
+                        var colorIdx = if (colorSize > 0) Random.nextInt(colorSize) else 0
+
+                        // 4. 转换为 Course + CourseWeek
+                        val courses = mutableListOf<Course>()
+                        val weeks = mutableListOf<CourseWeek>()
+                        for (item in courseItems) {
+                            val name = item.kcmc.trim()
+                            val ci = nameToColor.getOrPut(name) {
+                                val c = if (colorSize > 0) colorIdx % colorSize else 0
+                                colorIdx++
+                                c
+                            }
+                            val course = item.toCourseEntity(targetTableId, ci)
+                            courses.add(course)
+                            item.parseWeeks().forEach { w ->
+                                weeks.add(CourseWeek(courseId = course.id, weekNumber = w))
+                            }
+                        }
+
+                        // 5. 批量写入
+                        if (courses.isNotEmpty()) courseDao.insertAll(courses)
+                        if (weeks.isNotEmpty()) courseWeekDao.insertAll(weeks)
+                    }
+                }
+
+                // ── 第 3 步：抓取并写入成绩数据 ──
                 if (syncGrades) {
                     _syncUiState.value = SyncUiState.Loading("正在抓取成绩数据…")
                     val gradeItems = scraper.fetchGrades()
@@ -115,7 +186,7 @@ class CampusSyncViewModel @Inject constructor(
                     gradeDao.replaceAll(gradeEntities)
                 }
 
-                // ── 第 3 步：抓取并写入考试安排 ──
+                // ── 第 4 步：抓取并写入考试安排 ──
                 if (syncExams) {
                     _syncUiState.value = SyncUiState.Loading("正在抓取考试安排…")
                     val examItems = scraper.fetchExams()
@@ -131,6 +202,41 @@ class CampusSyncViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * 确定课程表同步的目标课表 ID。
+     *
+     * 查找优先级:
+     * 1. 用户当前使用的课表 (AppSettings.currentCourseTableId)
+     * 2. 数据库中最早创建的课表
+     * 3. 创建新课表（名称含时间戳，如 "教务系统导入 2026-06-19 15:30"）
+     */
+    private suspend fun resolveTargetTableId(): String {
+        // 优先使用用户当前课表
+        val settings = appSettingsRepository.getAppSettingsOnce()
+        if (settings.currentCourseTableId.isNotEmpty()) {
+            return settings.currentCourseTableId
+        }
+
+        // 回退到数据库中最旧的课表
+        val firstTable = courseTableDao.getFirstTableOnce()
+        if (firstTable != null) {
+            return firstTable.id
+        }
+
+        // 兜底: 创建新课表
+        val now = System.currentTimeMillis()
+        val name = "教务系统导入 ${
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(now))
+        }"
+        val newTable = CourseTable(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            createdAt = now
+        )
+        courseTableDao.insert(newTable)
+        return newTable.id
     }
 
     /**
