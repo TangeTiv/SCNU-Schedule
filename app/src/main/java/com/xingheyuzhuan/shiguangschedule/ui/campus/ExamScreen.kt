@@ -149,13 +149,6 @@ private fun ExamCard(uiModel: ExamUiModel) {
                 }
             }
 
-            // 类型行：ksmc · ksfs
-            val types = listOf(exam.ksmc, exam.ksfs).filter { it.isNotBlank() }
-            if (types.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                Text(text = types.joinToString(" · "), fontSize = 12.sp, color = Color(0xFF9E9E9E), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-
             Spacer(Modifier.height(12.dp))
 
             // 时间行
