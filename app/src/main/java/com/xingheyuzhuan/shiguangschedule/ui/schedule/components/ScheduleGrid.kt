@@ -1,5 +1,6 @@
 package com.xingheyuzhuan.shiguangschedule.ui.schedule.components
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -135,7 +136,6 @@ private fun DayHeader(
     subTextColor: Color
 ) {
     val density = LocalDensity.current
-    val headerHeightPx = with(density) { style.dayHeaderHeight.toPx() }
     val timeColumnWidthPx = with(density) { style.timeColumnWidth.toPx() }
 
     Box(Modifier.fillMaxWidth().height(style.dayHeaderHeight)) {
