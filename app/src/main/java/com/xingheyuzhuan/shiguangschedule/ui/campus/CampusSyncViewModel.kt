@@ -18,6 +18,7 @@ import com.xingheyuzhuan.shiguangschedule.data.db.main.toEntity
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuScraper
 import com.xingheyuzhuan.shiguangschedule.data.network.toCourseEntity
 import com.xingheyuzhuan.shiguangschedule.data.network.parseWeeks
+import java.time.LocalDate
 import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -200,8 +201,46 @@ class CampusSyncViewModel @Inject constructor(
                 if (syncExams) {
                     _syncUiState.value = SyncUiState.Loading("正在抓取考试安排…")
                     val examItems = scraper.fetchExams()
+
+                    // 4a. 始终更新 ExamDao（保持 ExamScreen 独立运转）
                     val examEntities = examItems.map { it.toEntity() }
                     examDao.replaceAll(examEntities)
+
+                    // 4b. 同时将考试作为自定义时间课程写入 Course 数据库
+                    runCatching {
+                        val targetTableId = resolveTargetTableId()
+                        val config = appSettingsRepository.getCourseConfigOnce(targetTableId)
+                        val termStartDate = config?.semesterStartDate?.let {
+                            try { LocalDate.parse(it) } catch (_: Exception) { null }
+                        }
+                        val firstDayOfWeek = config?.firstDayOfWeek ?: java.time.DayOfWeek.MONDAY.value
+
+                        if (termStartDate != null) {
+                            // 安全获取颜色索引：取调色板最后一个颜色，永不越界
+                            val colorSize = runCatching {
+                                styleSettingsRepository.styleFlow.first().courseColorMaps.size
+                            }.getOrElse { 0 }
+                            val examColor = (colorSize - 1).coerceAtLeast(0)
+
+                            // 清理上一次同步的旧考试课程
+                            courseDao.deleteSyncedExamsByTableId(targetTableId)
+
+                            // 批量转换并写入
+                            val courses = mutableListOf<Course>()
+                            val weeks = mutableListOf<CourseWeek>()
+                            for (item in examItems) {
+                                item.toCourseEntity(targetTableId, termStartDate, examColor, firstDayOfWeek)
+                                    ?.let { (c, ws) ->
+                                        courses.add(c)
+                                        weeks.addAll(ws)
+                                    }
+                            }
+                            if (courses.isNotEmpty()) courseDao.insertAll(courses)
+                            if (weeks.isNotEmpty()) courseWeekDao.insertAll(weeks)
+                        }
+                    }.onFailure { e ->
+                        android.util.Log.w("ExamSync", "写入考试到课表失败", e)
+                    }
                 }
 
                 // ── 全部完成 ──

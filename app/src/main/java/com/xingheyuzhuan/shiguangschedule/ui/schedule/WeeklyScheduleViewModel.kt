@@ -4,12 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfig
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWithWeeks
-import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamDao
-import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamEntity
 import com.xingheyuzhuan.shiguangschedule.data.db.main.TimeSlot
 import com.xingheyuzhuan.shiguangschedule.data.model.AppSettingsModel
 import com.xingheyuzhuan.shiguangschedule.data.model.ScheduleGridStyle
-import com.xingheyuzhuan.shiguangschedule.data.network.toCourseEntity
 import com.xingheyuzhuan.shiguangschedule.data.repository.AppSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.CourseTableRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
@@ -17,14 +14,12 @@ import com.xingheyuzhuan.shiguangschedule.data.repository.TimeSlotRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -83,8 +78,7 @@ class WeeklyScheduleViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val courseTableRepository: CourseTableRepository,
     private val timeSlotRepository: TimeSlotRepository,
-    private val styleSettingsRepository: StyleSettingsRepository,
-    private val examDao: ExamDao
+    private val styleSettingsRepository: StyleSettingsRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeeklyScheduleUiState())
@@ -95,17 +89,7 @@ class WeeklyScheduleViewModel @Inject constructor(
     )
 
     private val appSettingsFlow = appSettingsRepository.getAppSettings()
-
-    /** 主题样式（热流，供 combine 中同步读取） */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val _style: StateFlow<ScheduleGridStyle> = styleSettingsRepository.styleFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleGridStyle())
-    private val styleFlow = _style
-
-    /** 所有考试数据（热流，共享订阅） */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val _allExams: StateFlow<List<ExamEntity>> = examDao.getAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val styleFlow = styleSettingsRepository.styleFlow
 
     private val courseTableConfigFlow = appSettingsFlow.flatMapLatest { settings ->
         val tableId = settings.currentCourseTableId
@@ -133,35 +117,17 @@ class WeeklyScheduleViewModel @Inject constructor(
         _pagerMondayDate,
         appSettingsFlow,
         courseTableConfigFlow,
-        timeSlotsFlow,
-        _allExams
-    ) { date, settings, config, slots, allExams ->
+        timeSlotsFlow
+    ) { date, settings, config, slots ->
         val tableId = settings.currentCourseTableId
         if (config != null) {
-            // 将考试转换为模拟课程（复用跨三天的计算结果）
-            val termStartDate = try {
-                LocalDate.parse(config.semesterStartDate)
-            } catch (_: Exception) { null }
-
-            val firstDayOfWeek = config.firstDayOfWeek
-
-            val mockExamCourses = if (termStartDate != null) {
-                val colorSize = _style.value.courseColorMaps.size
-                val examColor = (colorSize - 1).coerceAtLeast(0)
-                allExams.mapNotNull { exam ->
-                    exam.toCourseEntity(tableId, termStartDate, examColor, firstDayOfWeek)
-                }.map { (course, weeks) ->
-                    CourseWithWeeks(course = course, weeks = weeks)
-                }
-            } else emptyList()
-
             val window = listOf(date.minusWeeks(1), date, date.plusWeeks(1))
 
             combine(window.map { day ->
                 val pageWeekNum = appSettingsRepository.getWeekIndexAtDate(
                     targetDate = day,
                     startDateStr = config.semesterStartDate,
-                    firstDayOfWeekInt = firstDayOfWeek
+                    firstDayOfWeekInt = config.firstDayOfWeek
                 )
 
                 val isWithinSemester = pageWeekNum != null && pageWeekNum in 1..config.semesterTotalWeeks
@@ -180,14 +146,7 @@ class WeeklyScheduleViewModel @Inject constructor(
                 }
 
                 coursesFlow.map { courses ->
-                    // 融合：将当周+当天的考试课程追加到真实课程后
-                    val dayOfWeek = day.dayOfWeek.value
-                    val examCoursesForDay = mockExamCourses.filter { mock ->
-                        mock.weeks.any { it.weekNumber == (pageWeekNum ?: -1) } &&
-                        mock.course.day == dayOfWeek
-                    }
-                    val allCourses = courses + examCoursesForDay
-                    day.toString() to mergeCourses(allCourses, slots, pageWeekNum ?: -1)
+                    day.toString() to mergeCourses(courses, slots, pageWeekNum ?: -1)
                 }
             }) { results -> results.toMap() }
         } else {
