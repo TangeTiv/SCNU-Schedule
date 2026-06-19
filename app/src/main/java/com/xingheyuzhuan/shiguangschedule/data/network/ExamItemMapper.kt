@@ -2,6 +2,7 @@ package com.xingheyuzhuan.shiguangschedule.data.network
 
 import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
+import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamEntity
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime

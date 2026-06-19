@@ -100,7 +100,7 @@ class WeeklyScheduleViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val _style: StateFlow<ScheduleGridStyle> = styleSettingsRepository.styleFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ScheduleGridStyle())
-    private val styleFlow: Flow<ScheduleGridStyle> = _style
+    private val styleFlow = _style
 
     /** 所有考试数据（热流，共享订阅） */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -150,6 +150,8 @@ class WeeklyScheduleViewModel @Inject constructor(
                 val examColor = (colorSize - 1).coerceAtLeast(0)
                 allExams.mapNotNull { exam ->
                     exam.toCourseEntity(tableId, termStartDate, examColor, firstDayOfWeek)
+                }.map { (course, weeks) ->
+                    CourseWithWeeks(course = course, weeks = weeks)
                 }
             } else emptyList()
 
