@@ -36,23 +36,39 @@ data class FlavorUpdateInfo(
 )
 
 
+/**
+ * 版本更新检测的远端 JSON 地址。
+ *
+ * 期望的 JSON 响应格式（kotlinx.serialization 自动解析，ignoreUnknownKeys = true）：
+ * ```
+ * {
+ *   "prod": {
+ *     "latestVersionCode": 31,          // 与 BuildConfig.VERSION_CODE 比较
+ *     "latestVersionName": "1.2.3",
+ *     "changelog": "更新内容说明",
+ *     "downloadLinks": {               // key 为设备 ABI，value 为下载 URL
+ *       "arm64-v8a": "https://...",
+ *       "armeabi-v7a": "https://...",
+ *       "x86_64": "https://...",
+ *       "universal": "https://..."
+ *     }
+ *   },
+ *   "dev": {                           // 与 prod 结构相同
+ *     "latestVersionCode": ...,
+ *     "latestVersionName": "...",
+ *     "changelog": "...",
+ *     "downloadLinks": { ... }
+ *   }
+ * }
+ * ```
+ * 请将 YOUR_UPDATE_URL_HERE 替换为实际服务器地址。
+ */
+const val UPDATE_REPO_URL = "YOUR_UPDATE_URL_HERE"
+
 class UpdateChecker(private val context: Context) {
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
-
-        // 远程更新索引文件的 URL
-        private const val GITHUB_INDEX_URL = "https://raw.githubusercontent.com/XingHeYuZhuan/test_update/refs/heads/main/update/update_info_github.json"
-        private const val GITEE_INDEX_URL = "https://gitee.com/XingHeYuZhuan-gh/test_update/raw/main/update/update_info_gitee.json"
-
-        // 默认更新渠道
-        val DEFAULT_PLATFORM_URL = GITEE_INDEX_URL
-
-        // 可供选择的更新渠道列表
-        val UPDATE_CHANNELS = listOf(
-            UpdateChannel("gitee", "Gitee 镜像 (推荐)", GITEE_INDEX_URL),
-            UpdateChannel("github", "GitHub 官方", GITHUB_INDEX_URL)
-        )
     }
 
     private val httpClient = OkHttpClient.Builder().build()
@@ -79,10 +95,10 @@ class UpdateChecker(private val context: Context) {
     }
 
     /** 检查是否有新版本可用 */
-    suspend fun checkUpdate(platformUrl: String): UpdateStatus = withContext(Dispatchers.Default) {
+    suspend fun checkUpdate(): UpdateStatus = withContext(Dispatchers.Default) {
         try {
             // 下载并解析 JSON
-            val request = Request.Builder().url(platformUrl).build()
+            val request = Request.Builder().url(UPDATE_REPO_URL).build()
             val indexJson = httpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("下载失败")
                 response.body.string()

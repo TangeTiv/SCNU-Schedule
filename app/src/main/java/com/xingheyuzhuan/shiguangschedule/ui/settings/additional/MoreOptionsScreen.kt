@@ -51,11 +51,9 @@ fun MoreOptionsScreen(
     // 更新逻辑相关状态
     val checker = remember { UpdateChecker(context) }
     var updateStatus by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Idle) }
-    var selectedChannelUrl by remember { mutableStateOf(UpdateChecker.DEFAULT_PLATFORM_URL) }
 
     // 弹窗可见性控制
     var showUpdateDialog by remember { mutableStateOf(false) }
-    var showChannelDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showStartScreenDialog by remember { mutableStateOf(false) }
 
@@ -75,11 +73,11 @@ fun MoreOptionsScreen(
     }
 
     // 逻辑：执行更新检查
-    val startUpdateCheck: (String) -> Unit = { platformUrl ->
+    val startUpdateCheck: () -> Unit = {
         updateStatus = UpdateStatus.Checking
         showUpdateDialog = true
         coroutineScope.launch {
-            updateStatus = checker.checkUpdate(platformUrl)
+            updateStatus = checker.checkUpdate()
         }
     }
 
@@ -136,7 +134,7 @@ fun MoreOptionsScreen(
                     SettingListItem(
                         icon = Icons.Default.Update,
                         title = stringResource(R.string.item_check_software_update),
-                        onClick = { showChannelDialog = true }
+                        onClick = startUpdateCheck
                     )
 
                     // 语言切换
@@ -226,15 +224,6 @@ fun MoreOptionsScreen(
             if (updateStatus !is UpdateStatus.Found) updateStatus = UpdateStatus.Idle
         },
         onDownloadClick = { checker.launchExternalDownload(it) }
-    )
-
-    // 更新渠道选择
-    ChannelSelectionDialog(
-        showDialog = showChannelDialog,
-        onDismiss = { showChannelDialog = false },
-        onConfirm = startUpdateCheck,
-        currentSelectedUrl = selectedChannelUrl,
-        onChannelSelected = { selectedChannelUrl = it }
     )
 
     // 语言选择

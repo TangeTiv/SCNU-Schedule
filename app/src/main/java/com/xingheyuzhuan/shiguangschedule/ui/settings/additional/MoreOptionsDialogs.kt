@@ -26,7 +26,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
-import com.xingheyuzhuan.shiguangschedule.tool.UpdateChecker.Companion.UPDATE_CHANNELS
 import com.xingheyuzhuan.shiguangschedule.tool.UpdateStatus
 
 /**
@@ -61,52 +60,6 @@ fun StartScreenSelectionDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.action_cancel))
-            }
-        }
-    )
-}
-
-/**
- * 更新渠道选择弹窗
- */
-@Composable
-fun ChannelSelectionDialog(
-    showDialog: Boolean,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-    currentSelectedUrl: String,
-    onChannelSelected: (String) -> Unit
-) {
-    if (!showDialog) return
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.dialog_select_update_channel)) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                UPDATE_CHANNELS.forEach { channel ->
-                    val isSelected = channel.url == currentSelectedUrl
-                    ListItem(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onChannelSelected(channel.url) },
-                        headlineContent = { Text(text = channel.title) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        leadingContent = {
-                            RadioButton(selected = isSelected, onClick = null)
-                        }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = { onConfirm(currentSelectedUrl) }) {
-                Text(stringResource(R.string.action_confirm))
-            }
-        },
-        dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.action_cancel))
             }
