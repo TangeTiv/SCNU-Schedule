@@ -301,6 +301,7 @@ fun SyncSelectionScreen(
                             viewModel.startSync(
                                 account = account.trim(),
                                 password = password,
+                                syncCourses = options.courses,
                                 syncGrades = options.grades,
                                 syncExams = options.exams
                             )
