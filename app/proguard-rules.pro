@@ -99,3 +99,6 @@
 -keep class com.xingheyuzhuan.shiguangschedule.data.network.** { *; }
 -keep @androidx.room.Entity class * { *; }
 -keep class * extends androidx.room.RoomDatabase { *; }
+
+# --- 10. 微信 Open SDK ---
+-keep class com.tencent.mm.opensdk.** { *; }

@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -82,6 +83,7 @@ fun CampusScreen(
     campusViewModel: CampusViewModel = hiltViewModel()
 ) {
     val campusState by campusViewModel.campusState.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         containerColor = SurfaceBackgroundColor,
@@ -301,7 +303,7 @@ private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
                 iconBgColor = Color(0xFFF43F5E),
                 title = stringResource(R.string.campus_card_map),
                 subtitle = stringResource(R.string.campus_card_map_desc),
-                onClick = { /* TODO: 校园地图 */ },
+                onClick = { WeChatMiniProgramLauncher.launchMap(context) },
                 modifier = Modifier.weight(1f)
             )
         }
