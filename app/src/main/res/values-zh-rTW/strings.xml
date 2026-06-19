@@ -1,6 +1,6 @@
 <resources>
     <!-- 應用基礎資訊 -->
-    <string name="app_name">拾光課程表</string>
+    <string name="app_name">華師課表</string>
     
     <!-- 通用按鈕和提示資訊 -->
     <string name="action_confirm">確定</string>

@@ -1,6 +1,6 @@
 <resources>
     <!-- 应用基础信息 -->
-    <string name="app_name">拾光课程表</string>
+    <string name="app_name">华师课表</string>
 
     <!-- 通用按钮和提示信息 -->
     <string name="action_confirm">确定</string>

@@ -1,6 +1,6 @@
 <resources>
     <!-- Basic App Information -->
-    <string name="app_name">Shiguang Schedule</string>
+    <string name="app_name">SCNU Schedule</string>
     
     <!-- Common Buttons and Messages -->
     <string name="action_confirm">Confirm</string>
