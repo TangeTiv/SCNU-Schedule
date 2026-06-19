@@ -266,21 +266,37 @@ private fun TimeText(text: String, color: Color) {
 
 @Composable
 private fun ClickableGrid(dayCount: Int, slotCount: Int, sectionHeight: Dp, lineColor: Color, onClick: (Int, Int) -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        for (sec in 1..slotCount) {
-            Row(Modifier.fillMaxWidth().height(sectionHeight)) {
-                repeat(dayCount) { idx ->
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .drawBehind {
-                                // 绘制逻辑间隔线
-                                drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
-                                drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1f)
-                            }
-                            .clickable { onClick(idx, sec) }
-                    )
+    val density = LocalDensity.current
+    val sectionHeightPx = with(density) { sectionHeight.toPx() }
+
+    Box(Modifier.fillMaxSize()) {
+        // 统一 Canvas 绘制所有网格线（单次 draw 替代 200+ 次 drawBehind）
+        Canvas(Modifier.fillMaxSize()) {
+            val cellWidth = size.width / dayCount
+            // 竖线
+            for (col in 1 until dayCount) {
+                val x = cellWidth * col
+                drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), 1f)
+            }
+            // 横线
+            for (row in 1..slotCount) {
+                val y = sectionHeightPx * row
+                drawLine(lineColor, Offset(0f, y), Offset(size.width, y), 1f)
+            }
+        }
+
+        // 点击层（独立 Box，不参与绘制）
+        Column(Modifier.fillMaxSize()) {
+            for (sec in 1..slotCount) {
+                Row(Modifier.fillMaxWidth().height(sectionHeight)) {
+                    repeat(dayCount) { idx ->
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clickable { onClick(idx, sec) }
+                        )
+                    }
                 }
             }
         }
