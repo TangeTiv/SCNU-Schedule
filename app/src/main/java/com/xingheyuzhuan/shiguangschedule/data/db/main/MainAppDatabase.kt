@@ -8,12 +8,11 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.AutoMigrationSpec
 import androidx.sqlite.db.SupportSQLiteDatabase
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 @Database(
     entities = [
@@ -65,7 +64,9 @@ abstract class MainAppDatabase : RoomDatabase() {
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            CoroutineScope(Dispatchers.IO).launch {
+                            // 必须同步等待默认数据插入完成，否则首次查询时
+                            // 课表/配置/时间段尚未创建，导致 currentCourseTableId 为空
+                            runBlocking(Dispatchers.IO) {
                                 INSTANCE?.let { database ->
                                     // 1. 初始化默认课表物理数据
                                     val tableId = java.util.UUID.randomUUID().toString()
