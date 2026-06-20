@@ -2,6 +2,7 @@ package com.xingheyuzhuan.shiguangschedule.ui.schedule.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -266,25 +268,34 @@ private fun TimeText(text: String, color: Color) {
 
 @Composable
 private fun ClickableGrid(dayCount: Int, slotCount: Int, sectionHeight: Dp, lineColor: Color, onClick: (Int, Int) -> Unit) {
-    Column(Modifier.fillMaxSize()) {
-        for (sec in 1..slotCount) {
-            Row(Modifier.fillMaxWidth().height(sectionHeight)) {
-                repeat(dayCount) { idx ->
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .drawBehind {
-                                // 绘制逻辑间隔线
-                                drawLine(lineColor, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
-                                drawLine(lineColor, Offset(0f, size.height), Offset(size.width, size.height), 1f)
-                            }
-                            .clickable { onClick(idx, sec) }
-                    )
+    Box(
+        Modifier
+            .fillMaxSize()
+            .drawBehind {
+                if (lineColor == Color.Transparent) return@drawBehind
+                val width = size.width
+                val height = size.height
+                val cellW = width / dayCount
+                val cellH = sectionHeight.toPx()
+                for (i in 1 until dayCount) {
+                    val x = i * cellW
+                    drawLine(lineColor, Offset(x, 0f), Offset(x, height), 1f)
+                }
+                for (i in 1..slotCount) {
+                    val y = i * cellH
+                    drawLine(lineColor, Offset(0f, y), Offset(width, y), 1f)
                 }
             }
-        }
-    }
+            .pointerInput(dayCount, slotCount, sectionHeight) {
+                detectTapGestures { offset ->
+                    val cellW = size.width / dayCount
+                    val cellH = sectionHeight.toPx()
+                    val dayIdx = (offset.x / cellW).toInt().coerceIn(0, dayCount - 1)
+                    val sec = (offset.y / cellH).toInt().coerceIn(0, slotCount - 1) + 1
+                    onClick(dayIdx, sec)
+                }
+            }
+    )
 }
 
 //  辅助逻辑
