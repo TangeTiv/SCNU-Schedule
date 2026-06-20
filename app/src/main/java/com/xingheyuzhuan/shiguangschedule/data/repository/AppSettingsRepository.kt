@@ -8,6 +8,7 @@ import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfigDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableDao
 import com.xingheyuzhuan.shiguangschedule.data.model.AppSettingsModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -55,11 +56,19 @@ class AppSettingsRepository @Inject constructor(
     /**
      * 获取应用设置数据流。
      */
-    fun getAppSettings(): Flow<AppSettingsModel> = dataStore.data.map { prefs ->
-        val dbFirstTableId = courseTableDao.getFirstTableOnce()?.id ?: ""
-
-        AppSettingsModel.fromPreferences(prefs, dbFirstTableId)
-    }
+    fun getAppSettings(): Flow<AppSettingsModel> = dataStore.data
+        .map { prefs ->
+            val dbFirstTableId = try {
+                courseTableDao.getFirstTableOnce()?.id ?: ""
+            } catch (e: Exception) {
+                ""
+            }
+            AppSettingsModel.fromPreferences(prefs, dbFirstTableId)
+        }
+        .catch { e ->
+            e.printStackTrace()
+            emit(AppSettingsModel())
+        }
 
     /**
      * 获取一次性的应用设置快照。

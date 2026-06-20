@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -154,7 +155,9 @@ class WeeklyScheduleViewModel @Inject constructor(
         } else {
             flowOf(emptyMap())
         }
-    }.flatMapLatest { it }.flowOn(Dispatchers.Default)
+    }.flatMapLatest { it }
+      .catch { e -> e.printStackTrace(); emit(emptyMap()) }
+      .flowOn(Dispatchers.Default)
 
     init {
         viewModelScope.launch {
@@ -213,7 +216,9 @@ class WeeklyScheduleViewModel @Inject constructor(
                     currentSectionIndex = currentSectionIndex,
                     daysUntilStart = daysUntil
                 )
-            }.flowOn(Dispatchers.Default).collect { _uiState.value = it }
+            }.flowOn(Dispatchers.Default)
+              .catch { e -> e.printStackTrace() }
+              .collect { _uiState.value = it }
         }
     }
 
