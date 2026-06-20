@@ -14,10 +14,10 @@ import com.tencent.mm.opensdk.openapi.WXAPIFactory
 object WeChatMiniProgramLauncher {
 
     /** 微信开放平台申请的 App ID */
-    private const val WECHAT_APP_ID = "YOUR_APP_ID"
+    private const val WECHAT_APP_ID = "wxb17dc2ffad3082c3"
 
     /** 华南师范大学校园地图微信小程序的原始 gh_id */
-    private const val SCNU_MAP_GH_ID = "gh_xxxxxxxxxxxx"
+    private const val SCNU_MAP_GH_ID = "gh_f119cd253a57"
 
     /**
      * 唤起校园地图微信小程序。
