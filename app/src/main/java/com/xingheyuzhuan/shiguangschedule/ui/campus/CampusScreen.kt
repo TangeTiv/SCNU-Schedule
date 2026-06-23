@@ -56,9 +56,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.xingheyuzhuan.shiguangschedule.Destination
 import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.ui.components.BottomNavigationBar
+import com.xingheyuzhuan.shiguangschedule.ui.theme.LocalIsDarkTheme
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
+
+// color palette for the warm-toned campus section (light mode only)
+private val SurfaceBackgroundColor = Color(0xFFFCF9F8)
+private val CardBackgroundColor = Color(0xFFEFE8E4)
+private val TextPrimary = Color(0xFF333333)
+private val TextSecondary = Color(0xFF666666)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,27 +75,32 @@ fun CampusScreen(
     campusViewModel: CampusViewModel = hiltViewModel()
 ) {
     val campusState by campusViewModel.campusState.collectAsState()
+    val isDark = LocalIsDarkTheme.current
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = if (isDark) MaterialTheme.colorScheme.surface else SurfaceBackgroundColor,
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
                     Text(
                         text = stringResource(R.string.campus_title_discover),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
+                        fontSize = 20.sp,
+                        color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary
                     )
                 },
                 actions = {
                     IconButton(onClick = { onNavigate(Destination.Settings) }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "设置"
+                            contentDescription = "设置",
+                            tint = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else TextSecondary
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors()
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else SurfaceBackgroundColor
+                )
             )
         },
         bottomBar = {
@@ -105,23 +117,20 @@ fun CampusScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // 欢迎卡片
-            item { WelcomeCard(state = campusState) }
+            item { WelcomeCard(state = campusState, isDark = isDark) }
 
-            // 教务与学业主功能区
             item {
                 Text(
                     text = stringResource(R.string.campus_section_academic),
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
                     modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
                 )
-                PrimaryServiceGrid(onNavigate = onNavigate)
+                PrimaryServiceGrid(onNavigate = onNavigate, isDark = isDark)
             }
 
-            // 校园服务次功能区
-            item { SecondaryServiceGrid() }
+            item { SecondaryServiceGrid(isDark = isDark) }
         }
     }
 }
@@ -129,14 +138,16 @@ fun CampusScreen(
 // region 欢迎卡片
 
 @Composable
-private fun WelcomeCard(state: CampusUiState) {
+private fun WelcomeCard(state: CampusUiState, isDark: Boolean) {
     val weekNumber = state.weekNumber
     val dayOfWeekName = LocalDate.now().dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else CardBackgroundColor
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
@@ -148,7 +159,7 @@ private fun WelcomeCard(state: CampusUiState) {
             Text(
                 text = stringResource(R.string.campus_week_info, weekNumber ?: 1, dayOfWeekName),
                 fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else TextSecondary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -157,7 +168,7 @@ private fun WelcomeCard(state: CampusUiState) {
                 text = stringResource(R.string.campus_school_name),
                 fontSize = 26.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -165,12 +176,12 @@ private fun WelcomeCard(state: CampusUiState) {
             Text(
                 text = stringResource(R.string.campus_school_subtitle),
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else TextSecondary
             )
 
             if (state.todayCourses.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
-                CourseCapsuleRow(courses = state.todayCourses)
+                CourseCapsuleRow(courses = state.todayCourses, isDark = isDark)
             }
         }
     }
@@ -181,7 +192,7 @@ private fun WelcomeCard(state: CampusUiState) {
 // region 今日速览胶囊行
 
 @Composable
-private fun CourseCapsuleRow(courses: List<TodayCourseDisplay>) {
+private fun CourseCapsuleRow(courses: List<TodayCourseDisplay>, isDark: Boolean) {
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -193,7 +204,8 @@ private fun CourseCapsuleRow(courses: List<TodayCourseDisplay>) {
         ) { course ->
             Surface(
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                color = if (isDark) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                    else Color.White.copy(alpha = 0.5f),
                 modifier = Modifier.height(36.dp)
             ) {
                 Row(
@@ -204,13 +216,13 @@ private fun CourseCapsuleRow(courses: List<TodayCourseDisplay>) {
                         text = course.startTime,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "【${course.courseName} - ${course.location}】",
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -222,10 +234,10 @@ private fun CourseCapsuleRow(courses: List<TodayCourseDisplay>) {
 
 // endregion
 
-// region 主功能网格（2列水平卡片）
+// region 主功能网格
 
 @Composable
-private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
+private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit, isDark: Boolean) {
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -235,7 +247,8 @@ private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
                 title = stringResource(R.string.campus_card_sync),
                 subtitle = stringResource(R.string.campus_card_sync_desc),
                 onClick = { onNavigate(Destination.SyncSelection) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isDark = isDark
             )
             ServiceCard(
                 icon = Icons.Filled.Grading,
@@ -243,7 +256,8 @@ private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
                 title = stringResource(R.string.campus_card_grades),
                 subtitle = stringResource(R.string.campus_card_grades_desc),
                 onClick = { onNavigate(Destination.Grades) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isDark = isDark
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -253,7 +267,8 @@ private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
                 title = stringResource(R.string.campus_card_exams),
                 subtitle = stringResource(R.string.campus_card_exams_desc),
                 onClick = { onNavigate(Destination.Exams) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isDark = isDark
             )
             ServiceCard(
                 icon = Icons.Filled.Map,
@@ -261,7 +276,8 @@ private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit) {
                 title = stringResource(R.string.campus_card_map),
                 subtitle = stringResource(R.string.campus_card_map_desc),
                 onClick = { WeChatMiniProgramLauncher.launchMap(context) },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                isDark = isDark
             )
         }
     }
@@ -274,13 +290,16 @@ private fun ServiceCard(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDark: Boolean = false
 ) {
     Card(
         onClick = onClick,
         modifier = modifier.height(84.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -309,14 +328,14 @@ private fun ServiceCard(
                     text = title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -327,10 +346,10 @@ private fun ServiceCard(
 
 // endregion
 
-// region 次功能网格（3列垂直卡片）
+// region 次功能网格
 
 @Composable
-private fun SecondaryServiceGrid() {
+private fun SecondaryServiceGrid(isDark: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -339,19 +358,22 @@ private fun SecondaryServiceGrid() {
             icon = Icons.Filled.LocalLibrary,
             iconBgColor = Color(0xFFD97706),
             title = stringResource(R.string.campus_service_library),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            isDark = isDark
         )
         SmallServiceCard(
             icon = Icons.Filled.DirectionsBus,
             iconBgColor = Color(0xFF3B82F6),
             title = stringResource(R.string.campus_service_transport),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            isDark = isDark
         )
         SmallServiceCard(
             icon = Icons.Filled.Campaign,
             iconBgColor = Color(0xFF8B5CF6),
             title = stringResource(R.string.campus_service_channel),
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            isDark = isDark
         )
     }
 }
@@ -361,12 +383,15 @@ private fun SmallServiceCard(
     icon: ImageVector,
     iconBgColor: Color,
     title: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDark: Boolean = false
 ) {
     Card(
         modifier = modifier.height(96.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -393,7 +418,7 @@ private fun SmallServiceCard(
                 text = title,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
                 maxLines = 1
             )
         }
