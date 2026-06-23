@@ -2,7 +2,7 @@
   "prod": {
     "latestVersionCode": 4,
     "latestVersionName": "1.1.0",
-    "changelog": "🎉 v1.1.0 更新\n- 修复了打包仓库资源时无法递归复制的问题\n- 校园地图启动方式改为使用 weixin:// URL Scheme\n",
+    "changelog": "🎉 v1.1.0 更新\n- 修复了打包仓库资源时无法递归复制的问题\n- 校园地图启动方式改为使用 weixin:// URL Scheme\n- 应用名称改为「师陶学程」\n- 校园页面增加深色主题支持\n",
     "downloadLinks": {
       "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.1.0/SCNU-Schedule.apk"
     }
@@ -10,7 +10,7 @@
   "dev": {
     "latestVersionCode": 4,
     "latestVersionName": "1.1.0-dev",
-    "changelog": "🎉 v1.1.0 更新\n- 修复了打包仓库资源时无法递归复制的问题\n- 校园地图启动方式改为使用 weixin:// URL Scheme\n",
+    "changelog": "🎉 v1.1.0 更新\n- 修复了打包仓库资源时无法递归复制的问题\n- 校园地图启动方式改为使用 weixin:// URL Scheme\n- 应用名称改为「师陶学程」\n- 校园页面增加深色主题支持\n",
     "downloadLinks": {
       "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.1.0/SCNU-Schedule.apk"
     }
