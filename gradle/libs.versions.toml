@@ -79,7 +79,6 @@ ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negoti
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 wire-runtime = { module = "com.squareup.wire:wire-runtime", version.ref = "wire" }
-wechat-sdk = { module = "com.tencent.mm.opensdk:wechat-sdk-android", version.ref = "wechatSdk" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
