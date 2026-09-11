@@ -16,7 +16,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +71,11 @@ fun ScheduleGrid(
 
         val pageTextColor = style.pageTextColor ?: MaterialTheme.colorScheme.onSurface
         val pageSubTextColor = pageTextColor.copy(alpha = 0.7f)
-        val weekDays = stringArrayResource(R.array.week_days_short_names).toList()
+        // 一次性读取并缓存星期名称，避免每次重组都解析字符串数组资源
+        val resources = LocalContext.current.resources
+        val weekDays = remember {
+            resources.getStringArray(R.array.week_days_short_names).toList()
+        }
         val reorderedWeekDays = remember(weekDays, firstDayOfWeek) {
             rearrangeDays(weekDays, firstDayOfWeek)
         }

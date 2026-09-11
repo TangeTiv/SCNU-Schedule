@@ -54,14 +54,11 @@ data class WeeklyScheduleUiState(
     val showWeekends: Boolean = false,
     val totalWeeks: Int = 20,
     val timeSlots: List<TimeSlot> = emptyList(),
-    val courseCache: Map<String, List<MergedCourseBlock>> = emptyMap(),
     val currentMergedCourses: List<MergedCourseBlock> = emptyList(),
     val isSemesterSet: Boolean = false,
     val semesterStartDate: LocalDate? = null,
     val firstDayOfWeek: Int = DayOfWeek.MONDAY.value,
-    val weekIndexInPager: Int? = null,
     val currentWeekNumber: Int? = null,
-    val pagerMondayDate: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
     val currentSectionIndex: Int = -1,
     val daysUntilStart: Long = 0
 )
@@ -98,6 +95,18 @@ class WeeklyScheduleViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(WeeklyScheduleUiState())
     val uiState: StateFlow<WeeklyScheduleUiState> = _uiState.asStateFlow()
+
+    /**
+     * 课程缓存（细粒度 SnapshotStateMap）：按周次日期键控，
+     * 仅当某一周的数据发生变化时才触发对应页面的重组，避免翻页时整页重组造成卡顿。
+     */
+    val courseCache: Map<String, List<MergedCourseBlock>> get() = scheduleDataCache.courseCache
+
+    /**
+     * 当前页周次索引（随翻页变化，单独成流），供标题等局部 UI 订阅，
+     * 避免其变化触发整个课表（含 Pager）重组。
+     */
+    val weekIndexInPager: StateFlow<Int?> = scheduleDataCache.weekIndexInPager
 
     private val _pagerMondayDate = MutableStateFlow(
         LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -223,26 +232,25 @@ class WeeklyScheduleViewModel @Inject constructor(
                 val currentWeekCourses = cache[configPkg.mondayDate.toString()] ?: emptyList()
                 fixInvalidCourseColors(currentWeekCourses.flatMap { it.courses }, configPkg.style)
 
-                WeeklyScheduleUiState(
+                // 注意：不包含 weekIndexInPager / currentMergedCourses 等随翻页变化的字段，
+                // 保证翻页时该状态结构相等，StateFlow 去重后不会触发整屏重组。
+                val state = WeeklyScheduleUiState(
                     style = configPkg.style,
                     showWeekends = config?.showWeekends ?: false,
                     totalWeeks = totalWeeks,
-                    courseCache = cache,
-                    currentMergedCourses = cache[configPkg.mondayDate.toString()] ?: emptyList(),
                     timeSlots = timeSlots,
                     isSemesterSet = startDate != null,
                     semesterStartDate = startDate,
                     firstDayOfWeek = firstDayOfWeekInt,
-                    weekIndexInPager = weekIndex,
                     currentWeekNumber = currentWeekNum,
-                    pagerMondayDate = configPkg.mondayDate,
                     currentSectionIndex = currentSectionIndex,
                     daysUntilStart = daysUntil
                 )
+                ScheduleEmission(state, cache, weekIndex)
             }.catch { e -> e.printStackTrace() }
-              .collect {
-                  scheduleDataCache.update(it)
-                  _uiState.value = it
+              .collect { emission ->
+                  scheduleDataCache.update(emission.state, emission.courseCache, emission.weekIndexInPager)
+                  _uiState.value = emission.state
               }
         }
     }
@@ -474,4 +482,14 @@ private data class ScheduleConfigPackage(
     val config: CourseTableConfig?,
     val style: ScheduleGridStyle,
     val mondayDate: LocalDate
+)
+
+/**
+ * 组合流的单次发射结果：配置状态、课程缓存与当前页周次索引分开传递，
+ * 使配置状态（不随翻页变化）保持稳定，仅周次索引单独更新标题。
+ */
+private data class ScheduleEmission(
+    val state: WeeklyScheduleUiState,
+    val courseCache: Map<String, List<MergedCourseBlock>>,
+    val weekIndexInPager: Int?
 )
