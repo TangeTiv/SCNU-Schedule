@@ -68,7 +68,7 @@ data class FlavorUpdateInfo(
  * ```
  * 请将 YOUR_UPDATE_URL_HERE 替换为实际服务器地址。
  */
-const val UPDATE_REPO_URL = "https://gitee.com/TangeTiw/scnu-schedule/raw/v1.4.0/update.json"
+const val UPDATE_REPO_URL = "https://gitee.com/TangeTiw/scnu-schedule/raw/main/update.json"
 
 class UpdateChecker(private val context: Context) {
 
