@@ -9,13 +9,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +40,16 @@ interface ISchedulable {
     val rawData: MergedCourseBlock
 }
 
+/**
+ * 轻量绘图模型实现，避免在每次重组时为每门课分配匿名内部类对象。
+ */
+private class SchedulableItem(
+    override val columnIndex: Int,
+    override val startSection: Float,
+    override val endSection: Float,
+    override val rawData: MergedCourseBlock
+) : ISchedulable
+
 @Suppress("COMPOSE_APPLIER_CALL_MISMATCH")
 @Composable
 fun ScheduleGrid(
@@ -60,24 +71,34 @@ fun ScheduleGrid(
 
         val pageTextColor = style.pageTextColor ?: MaterialTheme.colorScheme.onSurface
         val pageSubTextColor = pageTextColor.copy(alpha = 0.7f)
-        val weekDays = stringArrayResource(R.array.week_days_short_names).toList()
-        val reorderedWeekDays = rearrangeDays(weekDays, firstDayOfWeek)
-        val displayDays = if (showWeekends) reorderedWeekDays else reorderedWeekDays.take(5)
+        // 一次性读取并缓存星期名称，避免每次重组都解析字符串数组资源
+        val resources = LocalContext.current.resources
+        val weekDays = remember {
+            resources.getStringArray(R.array.week_days_short_names).toList()
+        }
+        val reorderedWeekDays = remember(weekDays, firstDayOfWeek) {
+            rearrangeDays(weekDays, firstDayOfWeek)
+        }
+        val displayDays = remember(reorderedWeekDays, showWeekends) {
+            if (showWeekends) reorderedWeekDays else reorderedWeekDays.take(5)
+        }
 
         // 计算尺寸
         val cellWidth = (screenWidth - style.timeColumnWidth) / displayDays.size
         val totalGridHeight = (style.sectionHeight * timeSlots.size).coerceAtLeast(1.dp)
         val gridLineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
 
-        // 转换绘图数据
-        val schedulables = mergedCourses.mapNotNull { block ->
-            val displayIdx = mapDayToDisplayIndex(block.day, firstDayOfWeek, showWeekends)
-            if (displayIdx == -1) return@mapNotNull null
-            object : ISchedulable {
-                override val columnIndex = displayIdx
-                override val startSection = block.startSection
-                override val endSection = block.endSection
-                override val rawData = block
+        // 转换绘图数据（仅依赖课程数据与布局开关，缓存以避免无关重组时重复分配）
+        val schedulables = remember(mergedCourses, firstDayOfWeek, showWeekends) {
+            mergedCourses.mapNotNull { block ->
+                val displayIdx = mapDayToDisplayIndex(block.day, firstDayOfWeek, showWeekends)
+                if (displayIdx == -1) null
+                else SchedulableItem(
+                    columnIndex = displayIdx,
+                    startSection = block.startSection,
+                    endSection = block.endSection,
+                    rawData = block
+                )
             }
         }
 

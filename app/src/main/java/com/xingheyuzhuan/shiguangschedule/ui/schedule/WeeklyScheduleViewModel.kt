@@ -12,6 +12,7 @@ import com.xingheyuzhuan.shiguangschedule.data.repository.CourseTableRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.StyleSettingsRepository
 import com.xingheyuzhuan.shiguangschedule.data.repository.TimeSlotRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -52,14 +54,11 @@ data class WeeklyScheduleUiState(
     val showWeekends: Boolean = false,
     val totalWeeks: Int = 20,
     val timeSlots: List<TimeSlot> = emptyList(),
-    val courseCache: Map<String, List<MergedCourseBlock>> = emptyMap(),
     val currentMergedCourses: List<MergedCourseBlock> = emptyList(),
     val isSemesterSet: Boolean = false,
     val semesterStartDate: LocalDate? = null,
     val firstDayOfWeek: Int = DayOfWeek.MONDAY.value,
-    val weekIndexInPager: Int? = null,
     val currentWeekNumber: Int? = null,
-    val pagerMondayDate: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
     val currentSectionIndex: Int = -1,
     val daysUntilStart: Long = 0
 )
@@ -73,17 +72,41 @@ private data class NormalizedCourse(
     val end: Float
 )
 
+/**
+ * 预解析的时间段，避免在每门课程坐标换算时重复排序与解析时间字符串。
+ */
+private data class ParsedSlot(
+    val number: Int,
+    val start: LocalTime,
+    val end: LocalTime
+)
+
+private val TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class WeeklyScheduleViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val courseTableRepository: CourseTableRepository,
     private val timeSlotRepository: TimeSlotRepository,
-    private val styleSettingsRepository: StyleSettingsRepository
+    private val styleSettingsRepository: StyleSettingsRepository,
+    private val scheduleDataCache: ScheduleDataCache
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeeklyScheduleUiState())
     val uiState: StateFlow<WeeklyScheduleUiState> = _uiState.asStateFlow()
+
+    /**
+     * 课程缓存（细粒度 SnapshotStateMap）：按周次日期键控，
+     * 仅当某一周的数据发生变化时才触发对应页面的重组，避免翻页时整页重组造成卡顿。
+     */
+    val courseCache: Map<String, List<MergedCourseBlock>> get() = scheduleDataCache.courseCache
+
+    /**
+     * 当前页周次索引（随翻页变化，单独成流），供标题等局部 UI 订阅，
+     * 避免其变化触发整个课表（含 Pager）重组。
+     */
+    val weekIndexInPager: StateFlow<Int?> = scheduleDataCache.weekIndexInPager
 
     private val _pagerMondayDate = MutableStateFlow(
         LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -111,8 +134,8 @@ class WeeklyScheduleViewModel @Inject constructor(
     }
 
     /**
-     * 实现三周滑动窗口预加载
-     * 监听当前页日期，同时拉取 [前一周, 本周, 后一周] 的数据并转为 Map 缓存
+     * 实现五周滑动窗口预加载
+     * 监听当前页日期，同时拉取 [前两周, 前一周, 本周, 后一周, 后两周] 的数据并转为 Map 缓存
      */
     private val currentCoursesFlow = combine(
         _pagerMondayDate,
@@ -122,7 +145,14 @@ class WeeklyScheduleViewModel @Inject constructor(
     ) { date, settings, config, slots ->
         val tableId = settings.currentCourseTableId
         if (config != null) {
-            val window = listOf(date.minusWeeks(1), date, date.plusWeeks(1))
+            // 预加载前后各两周，确保快速连滑时目标页数据已就绪，消除滑动空白闪烁
+            val window = listOf(
+                date.minusWeeks(2),
+                date.minusWeeks(1),
+                date,
+                date.plusWeeks(1),
+                date.plusWeeks(2)
+            )
 
             combine(window.map { day ->
                 val pageWeekNum = appSettingsRepository.getWeekIndexAtDate(
@@ -154,9 +184,14 @@ class WeeklyScheduleViewModel @Inject constructor(
             flowOf(emptyMap())
         }
     }.flatMapLatest { it }
+      // 将课程合并等 CPU 密集计算移出主线程，避免周次切换时卡顿
+      .flowOn(Dispatchers.Default)
       .catch { e -> e.printStackTrace(); emit(emptyMap()) }
 
     init {
+        // 页面重建时立即恢复上次的课表内容，避免一级页面切换回来出现空白闪烁
+        _uiState.value = scheduleDataCache.state.value
+
         viewModelScope.launch {
             val configAndTimeFlow = combine(
                 appSettingsFlow,
@@ -197,24 +232,26 @@ class WeeklyScheduleViewModel @Inject constructor(
                 val currentWeekCourses = cache[configPkg.mondayDate.toString()] ?: emptyList()
                 fixInvalidCourseColors(currentWeekCourses.flatMap { it.courses }, configPkg.style)
 
-                WeeklyScheduleUiState(
+                // 注意：不包含 weekIndexInPager / currentMergedCourses 等随翻页变化的字段，
+                // 保证翻页时该状态结构相等，StateFlow 去重后不会触发整屏重组。
+                val state = WeeklyScheduleUiState(
                     style = configPkg.style,
                     showWeekends = config?.showWeekends ?: false,
                     totalWeeks = totalWeeks,
-                    courseCache = cache,
-                    currentMergedCourses = cache[configPkg.mondayDate.toString()] ?: emptyList(),
                     timeSlots = timeSlots,
                     isSemesterSet = startDate != null,
                     semesterStartDate = startDate,
                     firstDayOfWeek = firstDayOfWeekInt,
-                    weekIndexInPager = weekIndex,
                     currentWeekNumber = currentWeekNum,
-                    pagerMondayDate = configPkg.mondayDate,
                     currentSectionIndex = currentSectionIndex,
                     daysUntilStart = daysUntil
                 )
+                ScheduleEmission(state, cache, weekIndex)
             }.catch { e -> e.printStackTrace() }
-              .collect { _uiState.value = it }
+              .collect { emission ->
+                  scheduleDataCache.update(emission.state, emission.courseCache, emission.weekIndexInPager)
+                  _uiState.value = emission.state
+              }
         }
     }
 
@@ -250,12 +287,12 @@ class WeeklyScheduleViewModel @Inject constructor(
     }
 
     private fun fixInvalidCourseColors(courses: List<CourseWithWeeks>, style: ScheduleGridStyle) {
+        val validRange = style.courseColorMaps.indices
+        val invalidCourses = courses.filter { it.course.colorInt !in validRange }
+        if (invalidCourses.isEmpty()) return
         viewModelScope.launch {
-            val validRange = style.courseColorMaps.indices
-            courses.forEach { cw ->
-                if (cw.course.colorInt !in validRange) {
-                    courseTableRepository.updateCourseColor(cw.course.id, style.generateRandomColorIndex())
-                }
+            invalidCourses.forEach { cw ->
+                courseTableRepository.updateCourseColor(cw.course.id, style.generateRandomColorIndex())
             }
         }
     }
@@ -263,33 +300,27 @@ class WeeklyScheduleViewModel @Inject constructor(
     /**
      * 计算逻辑节次位置。支持超出范围吸附及课间吸附。
      */
-    private fun timeToLogicalScale(time: LocalTime, timeSlots: List<TimeSlot>): Float {
-        if (timeSlots.isEmpty()) return 1.0f
-        val formatter = DateTimeFormatter.ofPattern("HH:mm")
-        val sortedSlots = timeSlots.sortedBy { it.number }
+    private fun timeToLogicalScale(time: LocalTime, parsedSlots: List<ParsedSlot>): Float {
+        if (parsedSlots.isEmpty()) return 1.0f
 
-        val firstSlotStart = LocalTime.parse(sortedSlots.first().startTime, formatter)
-        val lastSlotEnd = LocalTime.parse(sortedSlots.last().endTime, formatter)
+        val firstSlotStart = parsedSlots.first().start
+        val lastSlotEnd = parsedSlots.last().end
 
         if (!time.isAfter(firstSlotStart)) return 1.0f
         // 当时间超过或等于最后一节结束时间时，返回底部坐标
-        if (!time.isBefore(lastSlotEnd)) return (sortedSlots.size + 1).toFloat()
+        if (!time.isBefore(lastSlotEnd)) return (parsedSlots.size + 1).toFloat()
 
-        val currentSlot = sortedSlots.find {
-            val s = LocalTime.parse(it.startTime, formatter)
-            val e = LocalTime.parse(it.endTime, formatter)
-            !time.isBefore(s) && !time.isAfter(e)
+        val currentSlot = parsedSlots.find {
+            !time.isBefore(it.start) && !time.isAfter(it.end)
         }
 
         if (currentSlot != null) {
-            val sTime = LocalTime.parse(currentSlot.startTime, formatter)
-            val eTime = LocalTime.parse(currentSlot.endTime, formatter)
-            val duration = ChronoUnit.MINUTES.between(sTime, eTime).coerceAtLeast(1)
-            return currentSlot.number.toFloat() + (ChronoUnit.MINUTES.between(sTime, time).toFloat() / duration)
+            val duration = ChronoUnit.MINUTES.between(currentSlot.start, currentSlot.end).coerceAtLeast(1)
+            return currentSlot.number.toFloat() + (ChronoUnit.MINUTES.between(currentSlot.start, time).toFloat() / duration)
         }
 
-        val nextSlot = sortedSlots.find { LocalTime.parse(it.startTime, formatter).isAfter(time) }
-        return nextSlot?.number?.toFloat() ?: (sortedSlots.size + 1).toFloat()
+        val nextSlot = parsedSlots.find { it.start.isAfter(time) }
+        return nextSlot?.number?.toFloat() ?: (parsedSlots.size + 1).toFloat()
     }
 
     /**
@@ -301,13 +332,24 @@ class WeeklyScheduleViewModel @Inject constructor(
         val limit = maxSection + 1.0f // 课表绝对底部逻辑坐标
         val minSafeHeight = 0.3f
 
+        // 仅排序、解析一次时间段，供所有课程的坐标换算复用
+        val parsedSlots = timeSlots.sortedBy { it.number }.mapNotNull { slot ->
+            try {
+                ParsedSlot(
+                    number = slot.number,
+                    start = LocalTime.parse(slot.startTime, TIME_FORMATTER),
+                    end = LocalTime.parse(slot.endTime, TIME_FORMATTER)
+                )
+            } catch (e: Exception) { null }
+        }
+
         val normalizedList = courses.mapNotNull { cw ->
             try {
                 val c = cw.course
                 var (s, e) = if (c.isCustomTime) {
                     val sTime = LocalTime.parse(c.customStartTime ?: return@mapNotNull null)
                     val eTime = LocalTime.parse(c.customEndTime ?: return@mapNotNull null)
-                    timeToLogicalScale(sTime, timeSlots) to timeToLogicalScale(eTime, timeSlots)
+                    timeToLogicalScale(sTime, parsedSlots) to timeToLogicalScale(eTime, parsedSlots)
                 } else {
                     val start = c.startSection?.toFloat() ?: return@mapNotNull null
                     val end = c.endSection?.toFloat() ?: return@mapNotNull null
@@ -440,4 +482,14 @@ private data class ScheduleConfigPackage(
     val config: CourseTableConfig?,
     val style: ScheduleGridStyle,
     val mondayDate: LocalDate
+)
+
+/**
+ * 组合流的单次发射结果：配置状态、课程缓存与当前页周次索引分开传递，
+ * 使配置状态（不随翻页变化）保持稳定，仅周次索引单独更新标题。
+ */
+private data class ScheduleEmission(
+    val state: WeeklyScheduleUiState,
+    val courseCache: Map<String, List<MergedCourseBlock>>,
+    val weekIndexInPager: Int?
 )

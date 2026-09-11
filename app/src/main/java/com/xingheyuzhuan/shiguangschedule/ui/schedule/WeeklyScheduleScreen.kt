@@ -74,8 +74,10 @@ fun WeeklyScheduleScreen(
     )
 
     // 同步 Pager 状态到 ViewModel
-    LaunchedEffect(pagerState.currentPage, uiState.firstDayOfWeek) {
-        snapshotFlow { pagerState.currentPage }
+    // 仅在翻页“落定”后（settledPage）更新数据窗口：避免在滑动临界点（跨过半页时）
+    // 触发数据重算与整页重组，从而消除临界位置的卡顿。
+    LaunchedEffect(uiState.firstDayOfWeek) {
+        snapshotFlow { pagerState.settledPage }
             .distinctUntilChanged()
             .collect { pageIndex ->
                 val offsetWeeks = (pageIndex - INFINITE_PAGER_CENTER).toLong()
@@ -101,21 +103,6 @@ fun WeeklyScheduleScreen(
     val customTextColor = composedStyle.pageTextColor ?: MaterialTheme.colorScheme.onSurface
     val customSubTextColor = customTextColor.copy(alpha = 0.7f)
 
-    val displayTitle = when {
-        !uiState.isSemesterSet || uiState.semesterStartDate == null -> {
-            stringResource(R.string.title_semester_not_set)
-        }
-        uiState.daysUntilStart > 0 -> {
-            stringResource(R.string.title_vacation_until_start, uiState.daysUntilStart.toString())
-        }
-        uiState.weekIndexInPager != null && uiState.weekIndexInPager!! in 1..uiState.totalWeeks -> {
-            stringResource(R.string.title_current_week, uiState.weekIndexInPager.toString())
-        }
-        else -> {
-            stringResource(R.string.title_vacation)
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         if (composedStyle.backgroundImagePath.isNotEmpty()) {
             AsyncImage(
@@ -132,6 +119,22 @@ fun WeeklyScheduleScreen(
             topBar = {
                 CenterAlignedTopAppBar(
                     title = {
+                        // 仅在标题槽内订阅周次索引，翻页时只重组标题，不影响下方 Pager
+                        val weekIndexInPager by viewModel.weekIndexInPager.collectAsStateWithLifecycle()
+                        val displayTitle = when {
+                            !uiState.isSemesterSet || uiState.semesterStartDate == null -> {
+                                stringResource(R.string.title_semester_not_set)
+                            }
+                            uiState.daysUntilStart > 0 -> {
+                                stringResource(R.string.title_vacation_until_start, uiState.daysUntilStart.toString())
+                            }
+                            weekIndexInPager != null && weekIndexInPager in 1..uiState.totalWeeks -> {
+                                stringResource(R.string.title_current_week, weekIndexInPager.toString())
+                            }
+                            else -> {
+                                stringResource(R.string.title_vacation)
+                            }
+                        }
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -188,7 +191,7 @@ fun WeeklyScheduleScreen(
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                // [预加载] 强制渲染相邻页面，确保滑动时目标页已就绪
+                // [预加载] 仅预渲染相邻一页：降低首次进入【课表】时的组合成本，保证底部导航切换响应
                 beyondViewportPageCount = 1
             ) { pageIndex ->
 
@@ -215,8 +218,8 @@ fun WeeklyScheduleScreen(
                     weekDates.indexOf(today)
                 }
 
-                // 从三周缓存 Map 中获取该页日期对应的数据
-                val pageCourses = uiState.courseCache[pageMondayDate.toString()] ?: emptyList()
+                // 从细粒度缓存中获取该页日期对应的数据（仅该周变化时触发本页重组）
+                val pageCourses = viewModel.courseCache[pageMondayDate.toString()] ?: emptyList()
 
                 ScheduleGrid(
                     style = composedStyle,
@@ -242,10 +245,9 @@ fun WeeklyScheduleScreen(
                     },
                     onGridCellClicked = { day, section ->
                         if (uiState.semesterStartDate != null && !today.isBefore(uiState.semesterStartDate)) {
-                            coroutineScope.launch {
-                                AddEditCourseChannel.sendEvent(PresetCourseData(day, section, section))
-                                onNavigate(Destination.AddEditCourse())
-                            }
+                            // sendEvent 为非挂起操作，直接调用以降低点击响应延迟
+                            AddEditCourseChannel.sendEvent(PresetCourseData(day, section, section))
+                            onNavigate(Destination.AddEditCourse())
                         } else {
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(snackbarMsg)
@@ -262,12 +264,13 @@ fun WeeklyScheduleScreen(
 
     // 周次选择弹窗
     if (showWeekSelector) {
+        val weekIndexInPager = viewModel.weekIndexInPager.value
         WeekSelectorBottomSheet(
             totalWeeks = uiState.totalWeeks,
             currentWeek = uiState.currentWeekNumber ?: 1,
-            selectedWeek = uiState.weekIndexInPager ?: (uiState.currentWeekNumber ?: 1),
+            selectedWeek = weekIndexInPager ?: (uiState.currentWeekNumber ?: 1),
             onWeekSelected = { week ->
-                val currentWeekAtPage = uiState.weekIndexInPager ?: 1
+                val currentWeekAtPage = weekIndexInPager ?: 1
                 val offset = week - currentWeekAtPage
                 coroutineScope.launch {
                     pagerState.animateScrollToPage(pagerState.currentPage + offset)
@@ -284,7 +287,7 @@ fun WeeklyScheduleScreen(
             style = composedStyle,
             courses = overlapCoursesToShow,
             timeSlots = uiState.timeSlots,
-            currentWeek = uiState.weekIndexInPager,
+            currentWeek = viewModel.weekIndexInPager.value,
             onCourseClicked = { course ->
                 showOverlapBottomSheet = false
                 onNavigate(Destination.AddEditCourse(courseId = course.course.id))
