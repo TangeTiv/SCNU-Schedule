@@ -35,7 +35,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,11 +68,11 @@ fun SchoolSelectionListScreen(
     viewModel: SchoolSelectionViewModel = hiltViewModel()
 ) {
     // 观察 ViewModel 状态
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val selectedCategory by viewModel.selectedCategory.collectAsState()
-    val filteredSchools by viewModel.filteredSchools.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val schoolHistory by viewModel.schoolHistory.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
+    val filteredSchools by viewModel.filteredSchools.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val schoolHistory by viewModel.schoolHistory.collectAsStateWithLifecycle()
 
     val lazyListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()

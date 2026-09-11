@@ -34,7 +34,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -73,8 +72,8 @@ fun CourseInstanceListScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val courseInstances by viewModel.courseInstances.collectAsStateWithLifecycle()
-    val isSelectionMode by viewModel.isSelectionMode.collectAsState()
-    val selectedCourseIds by viewModel.selectedCourseIds.collectAsState()
+    val isSelectionMode by viewModel.isSelectionMode.collectAsStateWithLifecycle()
+    val selectedCourseIds by viewModel.selectedCourseIds.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     val onNavigateToAddNewCourse: () -> Unit = {

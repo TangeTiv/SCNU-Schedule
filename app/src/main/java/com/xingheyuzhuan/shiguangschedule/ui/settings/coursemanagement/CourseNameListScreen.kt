@@ -36,7 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,7 +68,7 @@ fun CourseNameListScreen(
     onBack: () -> Unit,
     viewModel: CourseNameListViewModel = hiltViewModel()
 ) {
-    val uniqueCourseNames by viewModel.uniqueCourseNames.collectAsState()
+    val uniqueCourseNames by viewModel.uniqueCourseNames.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
 
     var isSelectionMode by remember { mutableStateOf(false) }

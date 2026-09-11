@@ -40,7 +40,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -67,6 +67,8 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
 
+private val HH_MM_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
+
 /**
  * 时间段管理界面的 Compose UI。
  *
@@ -83,7 +85,7 @@ fun TimeSlotManagementScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val uiState by timeSlotViewModel.timeSlotsUiState.collectAsState()
+    val uiState by timeSlotViewModel.timeSlotsUiState.collectAsStateWithLifecycle()
 
     val localTimeSlots = remember {
         mutableStateListOf<TimeSlot>().apply { addAll(uiState.timeSlots.sortedBy { it.number }) }
@@ -299,7 +301,7 @@ private fun calculateInitialTimes(
 ): Pair<String, String> {
     if (isEditing && editingTimeSlot != null) return Pair(editingTimeSlot.startTime, editingTimeSlot.endTime)
 
-    val formatter = DateTimeFormatter.ofPattern("HH:mm")
+    val formatter = HH_MM_FORMATTER
     return if (localTimeSlots.isNotEmpty()) {
         val lastEndTime = localTimeSlots.maxOf { it.endTime }.let {
             try { LocalTime.parse(it, formatter) } catch (e: Exception) { LocalTime.of(8,0) }
@@ -465,7 +467,7 @@ fun TimeSlotEditContent(
         derivedStateOf {
             val start = LocalTime.of(startHourState, startMinuteState)
             val end = LocalTime.of(endHourState, endMinuteState)
-            val formatter = DateTimeFormatter.ofPattern("HH:mm")
+            val formatter = HH_MM_FORMATTER
             "${start.format(formatter)} - ${end.format(formatter)}"
         }
     }
@@ -583,7 +585,7 @@ fun TimeSlotEditContent(
                         val startTotalMinutes = startHourState * 60 + startMinuteState
                         val endTotalMinutes = endHourState * 60 + endMinuteState
                         if (endTotalMinutes > startTotalMinutes) {
-                            val formatter = DateTimeFormatter.ofPattern("HH:mm")
+                            val formatter = HH_MM_FORMATTER
                             val startTime = LocalTime.of(startHourState, startMinuteState).format(formatter)
                             val endTime = LocalTime.of(endHourState, endMinuteState).format(formatter)
                             onConfirm(initialNumber, startTime, endTime, aliasState.ifBlank { null })
@@ -601,7 +603,7 @@ fun TimeSlotEditContent(
 
 fun parseTimeString(timeString: String): Pair<Int, Int> {
     return try {
-        val formatter = DateTimeFormatter.ofPattern("HH:mm")
+        val formatter = HH_MM_FORMATTER
         val localTime = LocalTime.parse(timeString, formatter)
         Pair(localTime.hour, localTime.minute)
     } catch (e: Exception) {

@@ -22,7 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,8 +52,8 @@ fun TodayScheduleScreen(
     onBack: () -> Unit,
     viewModel: TodayScheduleViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val gridStyle by viewModel.gridStyle.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val gridStyle by viewModel.gridStyle.collectAsStateWithLifecycle()
     val isDark = LocalIsDarkTheme.current
 
     Scaffold(
@@ -157,8 +157,8 @@ fun CourseTimelineItem(
     gridStyle: ScheduleGridStyle,
     isDark: Boolean
 ) {
-    val currentTime = LocalTime.now()
     val isFinished = remember(model.endTime) {
+        val currentTime = LocalTime.now()
         try {
             LocalTime.parse(model.endTime ?: "00:00").isBefore(currentTime)
         } catch (e: Exception) { false }

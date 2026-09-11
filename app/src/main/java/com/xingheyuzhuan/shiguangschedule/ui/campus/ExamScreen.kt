@@ -34,7 +34,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,10 +55,10 @@ fun ExamScreen(
     onBack: () -> Unit,
     viewModel: ExamViewModel = hiltViewModel()
 ) {
-    val allExams by viewModel.allExams.collectAsState()
-    val availableTerms by viewModel.availableTerms.collectAsState()
-    val selectedTerm by viewModel.selectedTerm.collectAsState()
-    val displayedExams by viewModel.displayedExams.collectAsState()
+    val allExams by viewModel.allExams.collectAsStateWithLifecycle()
+    val availableTerms by viewModel.availableTerms.collectAsStateWithLifecycle()
+    val selectedTerm by viewModel.selectedTerm.collectAsStateWithLifecycle()
+    val displayedExams by viewModel.displayedExams.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {

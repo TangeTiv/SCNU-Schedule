@@ -50,6 +50,8 @@ import java.time.temporal.TemporalAdjusters
  */
 private const val INFINITE_PAGER_CENTER = Int.MAX_VALUE / 2
 
+private val MM_DD_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd")
+
 /**
  * 周课表主屏幕组件。
  * 支持三周滑动窗口预加载，消除滑动残留与加载闪烁。
@@ -208,8 +210,7 @@ fun WeeklyScheduleScreen(
 
                 // 独立日期列表：计算该页显示的日期文本
                 val pageDateStrings = remember(pageMondayDate) {
-                    val formatter = DateTimeFormatter.ofPattern("MM-dd")
-                    (0..6).map { pageMondayDate.plusDays(it.toLong()).format(formatter) }
+                    (0..6).map { pageMondayDate.plusDays(it.toLong()).format(MM_DD_FORMATTER) }
                 }
 
                 // 独立高亮：计算“今天”在该页的位置

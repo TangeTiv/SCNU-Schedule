@@ -18,7 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,8 +55,8 @@ fun CourseTablePickerDialog(
     onTableSelected: (CourseTable) -> Unit,
     deps: CourseTablePickerDeps = hiltViewModel()
 ) {
-    val courseTables by deps.courseTableRepository.getAllCourseTables().collectAsState(initial = emptyList())
-    val appSettings by deps.appSettingsRepository.getAppSettings().collectAsState(initial = null)
+    val courseTables by deps.courseTableRepository.getAllCourseTables().collectAsStateWithLifecycle(initialValue = emptyList())
+    val appSettings by deps.appSettingsRepository.getAppSettings().collectAsStateWithLifecycle(initialValue = null)
 
     var selectedTable by remember { mutableStateOf<CourseTable?>(null) }
 
