@@ -74,9 +74,10 @@ fun WeeklyScheduleScreen(
     )
 
     // 同步 Pager 状态到 ViewModel
-    // 仅依赖 firstDayOfWeek，避免每次翻页都重建 snapshotFlow 收集，减少冗余状态写入
+    // 仅在翻页“落定”后（settledPage）更新数据窗口：避免在滑动临界点（跨过半页时）
+    // 触发数据重算与整页重组，从而消除临界位置的卡顿。
     LaunchedEffect(uiState.firstDayOfWeek) {
-        snapshotFlow { pagerState.currentPage }
+        snapshotFlow { pagerState.settledPage }
             .distinctUntilChanged()
             .collect { pageIndex ->
                 val offsetWeeks = (pageIndex - INFINITE_PAGER_CENTER).toLong()
@@ -189,8 +190,9 @@ fun WeeklyScheduleScreen(
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                // [预加载] 强制渲染相邻页面，确保滑动时目标页已就绪
-                beyondViewportPageCount = 1
+                // [预加载] 预渲染前后各两页，与五周数据窗口对齐，
+                // 使快速连滑时目标页已完成布局，避免滑动中临时组合页面造成卡顿
+                beyondViewportPageCount = 2
             ) { pageIndex ->
 
                 // 去中心化：每一页根据索引独立计算自己的周一日期

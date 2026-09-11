@@ -92,7 +92,8 @@ class WeeklyScheduleViewModel @Inject constructor(
     private val appSettingsRepository: AppSettingsRepository,
     private val courseTableRepository: CourseTableRepository,
     private val timeSlotRepository: TimeSlotRepository,
-    private val styleSettingsRepository: StyleSettingsRepository
+    private val styleSettingsRepository: StyleSettingsRepository,
+    private val scheduleDataCache: ScheduleDataCache
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WeeklyScheduleUiState())
@@ -179,6 +180,9 @@ class WeeklyScheduleViewModel @Inject constructor(
       .catch { e -> e.printStackTrace(); emit(emptyMap()) }
 
     init {
+        // 页面重建时立即恢复上次的课表内容，避免一级页面切换回来出现空白闪烁
+        _uiState.value = scheduleDataCache.state.value
+
         viewModelScope.launch {
             val configAndTimeFlow = combine(
                 appSettingsFlow,
@@ -236,7 +240,10 @@ class WeeklyScheduleViewModel @Inject constructor(
                     daysUntilStart = daysUntil
                 )
             }.catch { e -> e.printStackTrace() }
-              .collect { _uiState.value = it }
+              .collect {
+                  scheduleDataCache.update(it)
+                  _uiState.value = it
+              }
         }
     }
 
