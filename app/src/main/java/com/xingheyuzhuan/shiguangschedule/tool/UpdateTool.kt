@@ -2,8 +2,10 @@ package com.xingheyuzhuan.shiguangschedule.tool
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
-import androidx.core.net.toUri
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import com.xingheyuzhuan.shiguangschedule.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,14 +13,16 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 
 /** 更新渠道信息 */
 data class UpdateChannel(val id: String, val title: String, val url: String)
 
 /** 更新检查结果状态 */
 sealed class UpdateStatus {
-    data class Found(val flavorInfo: FlavorUpdateInfo, val downloadUrl: String) : UpdateStatus()
+    data class Found(val flavorInfo: FlavorUpdateInfo, val downloadUrl: String, val checksum: String? = null) : UpdateStatus()
     data class Latest(val versionName: String) : UpdateStatus()
     data class Error(val message: String) : UpdateStatus()
     object Checking : UpdateStatus()
@@ -32,7 +36,8 @@ data class FlavorUpdateInfo(
     val latestVersionCode: Int,
     val latestVersionName: String,
     val changelog: String = "",
-    val downloadLinks: Map<String, String>
+    val downloadLinks: Map<String, String>,
+    val checksums: Map<String, String> = emptyMap()
 )
 
 
@@ -63,7 +68,7 @@ data class FlavorUpdateInfo(
  * ```
  * 请将 YOUR_UPDATE_URL_HERE 替换为实际服务器地址。
  */
-const val UPDATE_REPO_URL = "https://raw.githubusercontent.com/TangeTiv/SCNU-Schedule/refs/heads/main/update.json"
+const val UPDATE_REPO_URL = "https://gitee.com/TangeTiw/scnu-schedule/raw/main/update.json"
 
 class UpdateChecker(private val context: Context) {
 
@@ -75,14 +80,93 @@ class UpdateChecker(private val context: Context) {
     private val currentFlavorId = BuildConfig.CURRENT_FLAVOR_ID
     private val currentVersionCode = BuildConfig.VERSION_CODE
 
-    /** 使用外部浏览器启动下载链接 */
-    fun launchExternalDownload(downloadUrl: String) {
-        val intent = Intent(Intent.ACTION_VIEW, downloadUrl.toUri()).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+    /**
+     * 在应用内下载 APK 到私有目录，返回结果文件。
+     * 若提供了 expectedSha256，下载完成后会做 SHA-256 完整性校验。
+     */
+    suspend fun downloadApk(
+        downloadUrl: String,
+        expectedSha256: String?,
+        onProgress: (Int) -> Unit
+    ): Result<File> = withContext(Dispatchers.IO) {
         try {
+            val request = Request.Builder().url(downloadUrl).build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IOException("下载失败 (HTTP ${response.code})")
+                val body = response.body
+                val contentLength = body.contentLength()
+
+                val apkDir = File(context.filesDir, "apk").apply { mkdirs() }
+                val tempFile = File(apkDir, "update.apk.tmp")
+
+                body.byteStream().use { input ->
+                    tempFile.outputStream().use { output ->
+                        val buffer = ByteArray(8192)
+                        var total = 0L
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read == -1) break
+                            output.write(buffer, 0, read)
+                            total += read
+                            if (contentLength > 0) {
+                                onProgress(((total * 100) / contentLength).toInt().coerceIn(0, 100))
+                            }
+                        }
+                    }
+                }
+
+                if (!expectedSha256.isNullOrBlank()) {
+                    val actual = tempFile.sha256()
+                    if (!actual.equals(expectedSha256, ignoreCase = true)) {
+                        tempFile.delete()
+                        throw IOException("文件校验失败（SHA-256 不匹配）")
+                    }
+                }
+
+                val apkFile = File(apkDir, "update.apk")
+                if (apkFile.exists()) apkFile.delete()
+                tempFile.renameTo(apkFile)
+                Result.success(apkFile)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** 是否已获得「安装未知应用」权限（Android 8.0+ 需要） */
+    fun hasInstallPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()
+
+    /** 引导用户开启「安装未知应用」权限 */
+    fun openInstallPermissionSettings() {
+        try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             context.startActivity(intent)
         } catch (e: Exception) {
+        }
+    }
+
+    /** 调用系统安装器安装 APK；权限不足时返回 false */
+    fun installApk(apkFile: File): Boolean {
+        if (!hasInstallPermission()) return false
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -122,11 +206,26 @@ class UpdateChecker(private val context: Context) {
             val finalDownloadUrl = flavorInfo.downloadLinks[deviceAbi]
                 ?: flavorInfo.downloadLinks["universal"]
                 ?: throw IllegalStateException("未找到适合 ABI 的下载链接")
+            val checksum = flavorInfo.checksums[deviceAbi] ?: flavorInfo.checksums["universal"]
 
-            return@withContext UpdateStatus.Found(flavorInfo, finalDownloadUrl)
+            return@withContext UpdateStatus.Found(flavorInfo, finalDownloadUrl, checksum)
 
         } catch (e: Exception) {
             return@withContext UpdateStatus.Error("检查更新失败: ${e.message ?: "未知错误"}")
         }
     }
+}
+
+/** 计算文件的 SHA-256 十六进制摘要 */
+private fun File.sha256(): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    inputStream().use { input ->
+        val buffer = ByteArray(8192)
+        while (true) {
+            val read = input.read(buffer)
+            if (read == -1) break
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
 }

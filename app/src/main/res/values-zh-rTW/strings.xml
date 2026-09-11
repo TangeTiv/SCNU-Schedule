@@ -341,6 +341,9 @@
     <string name="dialog_update_check_failed">更新檢查失敗</string>
     <string name="label_error_message">錯誤資訊：%s</string>
     <string name="btn_download_update">下載更新</string>
+    <string name="dialog_downloading_update">正在下載更新 %1$d%%</string>
+    <string name="dialog_download_failed">下載失敗：%1$s</string>
+    <string name="toast_install_permission_required">請在系統設定中開啟「安裝未知應用」權限，返回後自動安裝</string>
     <string name="btn_update_now">立即更新</string>
     <string name="tip_non_mandatory_update">提示：強制更新不會顯示此取消按鈕。</string>
     <string name="dialog_select_update_channel">選擇更新渠道</string>

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -12,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -68,18 +70,20 @@ fun StartScreenSelectionDialog(
 }
 
 /**
- * 更新检查结果弹窗
+ * 更新检查结果弹窗（含应用内下载进度）
  */
 @Composable
 fun UpdateResultDialog(
     showDialog: Boolean,
     updateStatus: UpdateStatus,
+    downloadProgress: Int?,
+    downloadError: String?,
     onDismiss: () -> Unit,
-    onDownloadClick: (String) -> Unit
+    onDownloadClick: (String, String?) -> Unit
 ) {
     if (!showDialog || updateStatus is UpdateStatus.Idle) return
 
-    // 加载中状态
+    // 检查中状态
     if (updateStatus is UpdateStatus.Checking) {
         AlertDialog(
             onDismissRequest = { },
@@ -96,42 +100,71 @@ fun UpdateResultDialog(
         return
     }
 
-    // 结果映射
-    val (title, text, confirmBtn) = when (updateStatus) {
-        is UpdateStatus.Found -> Triple(
-            stringResource(R.string.dialog_new_version_found, updateStatus.flavorInfo.latestVersionName),
-            updateStatus.flavorInfo.changelog,
-            @Composable {
-                Button(onClick = { onDownloadClick(updateStatus.downloadUrl) }) {
-                    Text(stringResource(R.string.btn_download_update))
+    when (updateStatus) {
+        is UpdateStatus.Found -> {
+            val downloading = downloadProgress != null
+            val failed = downloadError != null
+            val changelog = updateStatus.flavorInfo.changelog
+            val text = if (failed) {
+                changelog + "\n\n" + stringResource(R.string.dialog_download_failed, downloadError)
+            } else {
+                changelog
+            }
+
+            AlertDialog(
+                onDismissRequest = { if (!downloading) onDismiss() },
+                title = { Text(stringResource(R.string.dialog_new_version_found, updateStatus.flavorInfo.latestVersionName)) },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        Text(text, style = MaterialTheme.typography.bodyMedium)
+                        if (downloading) {
+                            Spacer(Modifier.height(16.dp))
+                            LinearProgressIndicator(
+                                progress = { downloadProgress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(R.string.dialog_downloading_update, downloadProgress),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (!downloading) {
+                        Button(onClick = { onDownloadClick(updateStatus.downloadUrl, updateStatus.checksum) }) {
+                            Text(stringResource(if (failed) R.string.action_retry else R.string.btn_download_update))
+                        }
+                    }
+                },
+                dismissButton = {
+                    if (!downloading) {
+                        TextButton(onClick = onDismiss) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
                 }
+            )
+        }
+
+        is UpdateStatus.Latest -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.dialog_current_version_latest)) },
+            text = { Text(stringResource(R.string.label_version_prefix, updateStatus.versionName)) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_confirm)) }
             }
         )
-        is UpdateStatus.Latest -> Triple(
-            stringResource(R.string.dialog_current_version_latest),
-            stringResource(R.string.label_version_prefix, updateStatus.versionName),
-            null
-        )
-        is UpdateStatus.Error -> Triple(
-            stringResource(R.string.dialog_update_check_failed),
-            stringResource(R.string.label_error_message, updateStatus.message),
-            null
+
+        is UpdateStatus.Error -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.dialog_update_check_failed)) },
+            text = { Text(stringResource(R.string.label_error_message, updateStatus.message)) },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_confirm)) }
+            }
         )
     }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                Text(text, style = MaterialTheme.typography.bodyMedium)
-            }
-        },
-        confirmButton = { confirmBtn?.invoke() },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(if (updateStatus is UpdateStatus.Found) R.string.action_cancel else R.string.action_confirm))
-            }
-        }
-    )
 }
