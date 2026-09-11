@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.aboutLibraries)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.wire)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -139,6 +140,7 @@ dependencies {
     implementation(libs.slf4j.android)
     implementation(libs.androidx.compose.animation)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.javax.inject)
     implementation(libs.androidx.appcompat)
     implementation(libs.hilt.android)
@@ -153,6 +155,8 @@ dependencies {
     implementation(libs.wire.runtime)
 
     debugImplementation(libs.okhttp.logging.interceptor)
+
+    "baselineProfile"(project(":baselineprofile"))
 
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room.compiler)

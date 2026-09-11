@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "SCNU-Schedule"
 include(":app")
+include(":baselineprofile")
