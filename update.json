@@ -1,12 +1,12 @@
 {
   "prod": {
-    "latestVersionCode": 8,
-    "latestVersionName": "1.3.1",
-    "changelog": "🚀 v1.3.1 更新\n- 引入 Baseline Profile 支持，为冷启动与首屏流畅度优化打下基础\n- 全面改用生命周期感知的数据收集，后台更省电、资源占用更低\n- 进一步优化渲染与时间计算，减少运行时内存分配\n",
+    "latestVersionCode": 9,
+    "latestVersionName": "1.4.0",
+    "changelog": "🚀 v1.4.0 更新\n- 全新应用内更新体验：发现新版本后直接在应用内下载并安装，无需跳转浏览器\n- 下载过程显示进度，并支持 SHA-256 完整性校验\n- 按设备 CPU 架构匹配安装包，下载更快更省流量\n",
     "downloadLinks": {
-      "arm64-v8a": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/app-prod-arm64-v8a-release.apk",
-      "armeabi-v7a": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/app-prod-armeabi-v7a-release.apk",
-      "x86_64": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/app-prod-x86_64-release.apk"
+      "arm64-v8a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-arm64-v8a-release.apk",
+      "armeabi-v7a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-armeabi-v7a-release.apk",
+      "x86_64": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-x86_64-release.apk"
     },
     "checksums": {
       "arm64-v8a": "",
@@ -15,13 +15,13 @@
     }
   },
   "dev": {
-    "latestVersionCode": 8,
-    "latestVersionName": "1.3.1-dev",
-    "changelog": "🚀 v1.3.1 更新\n- 引入 Baseline Profile 支持，为冷启动与首屏流畅度优化打下基础\n- 全面改用生命周期感知的数据收集，后台更省电、资源占用更低\n- 进一步优化渲染与时间计算，减少运行时内存分配\n",
+    "latestVersionCode": 9,
+    "latestVersionName": "1.4.0-dev",
+    "changelog": "🚀 v1.4.0 更新\n- 全新应用内更新体验：发现新版本后直接在应用内下载并安装，无需跳转浏览器\n- 下载过程显示进度，并支持 SHA-256 完整性校验\n- 按设备 CPU 架构匹配安装包，下载更快更省流量\n",
     "downloadLinks": {
-      "arm64-v8a": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/app-dev-arm64-v8a-release.apk",
-      "armeabi-v7a": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/app-dev-armeabi-v7a-release.apk",
-      "x86_64": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/app-dev-x86_64-release.apk"
+      "arm64-v8a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-dev-arm64-v8a-release.apk",
+      "armeabi-v7a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-dev-armeabi-v7a-release.apk",
+      "x86_64": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-dev-x86_64-release.apk"
     },
     "checksums": {
       "arm64-v8a": "",
