@@ -74,7 +74,8 @@ fun WeeklyScheduleScreen(
     )
 
     // 同步 Pager 状态到 ViewModel
-    LaunchedEffect(pagerState.currentPage, uiState.firstDayOfWeek) {
+    // 仅依赖 firstDayOfWeek，避免每次翻页都重建 snapshotFlow 收集，减少冗余状态写入
+    LaunchedEffect(uiState.firstDayOfWeek) {
         snapshotFlow { pagerState.currentPage }
             .distinctUntilChanged()
             .collect { pageIndex ->
@@ -242,10 +243,9 @@ fun WeeklyScheduleScreen(
                     },
                     onGridCellClicked = { day, section ->
                         if (uiState.semesterStartDate != null && !today.isBefore(uiState.semesterStartDate)) {
-                            coroutineScope.launch {
-                                AddEditCourseChannel.sendEvent(PresetCourseData(day, section, section))
-                                onNavigate(Destination.AddEditCourse())
-                            }
+                            // sendEvent 为非挂起操作，直接调用以降低点击响应延迟
+                            AddEditCourseChannel.sendEvent(PresetCourseData(day, section, section))
+                            onNavigate(Destination.AddEditCourse())
                         } else {
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(snackbarMsg)
