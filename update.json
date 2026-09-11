@@ -1,21 +1,21 @@
 {
   "prod": {
-    "latestVersionCode": 9,
-    "latestVersionName": "1.4.0",
-    "changelog": "🚀 v1.4.0 更新\n- 全新应用内更新体验：发现新版本后直接在应用内下载并安装，无需跳转浏览器\n- 下载过程显示进度，并支持 SHA-256 完整性校验\n",
+    "latestVersionCode": 10,
+    "latestVersionName": "1.4.1",
+    "changelog": "🚀 v1.4.1 更新\n- 本次为维护版本，功能与 v1.4.0 保持一致\n- 优化更新流程与稳定性\n",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.1/SCNU-Schedule.apk"
     },
     "checksums": {
-      "universal": "7bb6daeedc0ba1877346426376728816a26b595961050d3c66df48d22262c184"
+      "universal": "19cdcf731af6791ae5af23ccddd18e9a38ae2ad70c090a1d33ea5d07c1081493"
     }
   },
   "dev": {
-    "latestVersionCode": 9,
-    "latestVersionName": "1.4.0-dev",
-    "changelog": "🚀 v1.4.0 更新\n- 全新应用内更新体验：发现新版本后直接在应用内下载并安装，无需跳转浏览器\n- 下载过程显示进度，并支持 SHA-256 完整性校验\n",
+    "latestVersionCode": 10,
+    "latestVersionName": "1.4.1-dev",
+    "changelog": "🚀 v1.4.1 更新\n- 本次为维护版本，功能与 v1.4.0 保持一致\n- 优化更新流程与稳定性\n",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.1/SCNU-Schedule.apk"
     },
     "checksums": {
       "universal": ""
