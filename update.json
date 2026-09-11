@@ -1,18 +1,18 @@
 {
   "prod": {
-    "latestVersionCode": 7,
-    "latestVersionName": "1.2.3",
-    "changelog": "🚀 v1.2.3 更新\n- 大幅优化【课表】页周次滑动流畅度，消除翻页过程中的卡顿\n- 提升底部导航切换响应速度，切回课表不再出现内容空白\n- 优化课程表点击响应与整体渲染性能\n",
+    "latestVersionCode": 8,
+    "latestVersionName": "1.3.1",
+    "changelog": "🚀 v1.3.1 更新\n- 引入 Baseline Profile 支持，为冷启动与首屏流畅度优化打下基础\n- 全面改用生命周期感知的数据收集，后台更省电、资源占用更低\n- 进一步优化渲染与时间计算，减少运行时内存分配\n",
     "downloadLinks": {
-      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.2.3/SCNU-Schedule.apk"
+      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/SCNU-Schedule.apk"
     }
   },
   "dev": {
-    "latestVersionCode": 7,
-    "latestVersionName": "1.2.3-dev",
-    "changelog": "🚀 v1.2.3 更新\n- 大幅优化【课表】页周次滑动流畅度，消除翻页过程中的卡顿\n- 提升底部导航切换响应速度，切回课表不再出现内容空白\n- 优化课程表点击响应与整体渲染性能\n",
+    "latestVersionCode": 8,
+    "latestVersionName": "1.3.1-dev",
+    "changelog": "🚀 v1.3.1 更新\n- 引入 Baseline Profile 支持，为冷启动与首屏流畅度优化打下基础\n- 全面改用生命周期感知的数据收集，后台更省电、资源占用更低\n- 进一步优化渲染与时间计算，减少运行时内存分配\n",
     "downloadLinks": {
-      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.2.3/SCNU-Schedule.apk"
+      "universal": "https://github.com/TangeTiv/SCNU-Schedule/releases/download/v1.3.1/SCNU-Schedule.apk"
     }
   }
 }

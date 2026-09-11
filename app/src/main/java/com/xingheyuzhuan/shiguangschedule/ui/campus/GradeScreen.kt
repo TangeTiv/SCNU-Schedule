@@ -33,7 +33,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,12 +65,12 @@ fun GradeScreen(
     onBack: () -> Unit,
     viewModel: GradeViewModel = hiltViewModel()
 ) {
-    val allGrades by viewModel.allGrades.collectAsState()
-    val availableTerms by viewModel.availableTerms.collectAsState()
-    val selectedTerm by viewModel.selectedTerm.collectAsState()
-    val displayedGrades by viewModel.displayedGrades.collectAsState()
-    val totalGpa by viewModel.totalGpa.collectAsState()
-    val termGpa by viewModel.termGpa.collectAsState()
+    val allGrades by viewModel.allGrades.collectAsStateWithLifecycle()
+    val availableTerms by viewModel.availableTerms.collectAsStateWithLifecycle()
+    val selectedTerm by viewModel.selectedTerm.collectAsStateWithLifecycle()
+    val displayedGrades by viewModel.displayedGrades.collectAsStateWithLifecycle()
+    val totalGpa by viewModel.totalGpa.collectAsStateWithLifecycle()
+    val termGpa by viewModel.termGpa.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
