@@ -22,10 +22,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import coil3.compose.AsyncImage
+import java.io.File
 import com.xingheyuzhuan.shiguangschedule.Destination
 import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.tool.UpdateChecker
@@ -78,6 +81,57 @@ fun MoreOptionsScreen(
         coroutineScope.launch {
             updateStatus = checker.checkUpdate()
         }
+    }
+
+    // 应用内下载与安装相关状态
+    var downloadProgress by remember { mutableStateOf<Int?>(null) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+    var pendingApkFile by remember { mutableStateOf<File?>(null) }
+
+    // 逻辑：应用内下载并安装 APK
+    val startDownload: (String, String?) -> Unit = { url, checksum ->
+        downloadError = null
+        downloadProgress = 0
+        coroutineScope.launch {
+            checker.downloadApk(url, checksum) { p -> downloadProgress = p }
+                .onSuccess { apkFile ->
+                    downloadProgress = null
+                    if (checker.hasInstallPermission()) {
+                        checker.installApk(apkFile)
+                        showUpdateDialog = false
+                        pendingApkFile = null
+                    } else {
+                        pendingApkFile = apkFile
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.toast_install_permission_required),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        checker.openInstallPermissionSettings()
+                    }
+                }
+                .onFailure { e ->
+                    downloadProgress = null
+                    downloadError = e.message ?: context.getString(R.string.dialog_update_check_failed)
+                }
+        }
+    }
+
+    // 从系统设置返回后自动安装已下载好的 APK
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val apk = pendingApkFile
+                if (apk != null && checker.hasInstallPermission()) {
+                    checker.installApk(apk)
+                    pendingApkFile = null
+                    showUpdateDialog = false
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     Scaffold(
@@ -235,11 +289,15 @@ fun MoreOptionsScreen(
     UpdateResultDialog(
         showDialog = showUpdateDialog,
         updateStatus = updateStatus,
+        downloadProgress = downloadProgress,
+        downloadError = downloadError,
         onDismiss = {
             showUpdateDialog = false
+            downloadProgress = null
+            downloadError = null
             if (updateStatus !is UpdateStatus.Found) updateStatus = UpdateStatus.Idle
         },
-        onDownloadClick = { checker.launchExternalDownload(it) }
+        onDownloadClick = startDownload
     )
 
     // 语言选择
