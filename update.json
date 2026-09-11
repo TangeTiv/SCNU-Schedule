@@ -1,32 +1,24 @@
 {
   "prod": {
-    "latestVersionCode": 9,
-    "latestVersionName": "1.4.0",
-    "changelog": "🚀 v1.4.0 更新\n- 全新应用内更新体验：发现新版本后直接在应用内下载并安装，无需跳转浏览器\n- 下载过程显示进度，并支持 SHA-256 完整性校验\n- 按设备 CPU 架构匹配安装包，下载更快更省流量\n",
+    "latestVersionCode": 10,
+    "latestVersionName": "1.4.1",
+    "changelog": "🧪 v1.4.1 更新测试\n- 本版本用于验证应用内更新流程：检测新版本 → 应用内下载 → 安装\n",
     "downloadLinks": {
-      "arm64-v8a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-arm64-v8a-release.apk",
-      "armeabi-v7a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-armeabi-v7a-release.apk",
-      "x86_64": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-x86_64-release.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/SCNU-Schedule.apk"
     },
     "checksums": {
-      "arm64-v8a": "5f6f8a5d870797585afa8e74bb1acc7f6a03c7cdc30de9f4f25847ff82c21e77",
-      "armeabi-v7a": "812141ac6525e947e4cde7a08c0f12b8a4378e38cf06d278c872f689de8d4db9",
-      "x86_64": "b02673a4c7f0a310ab06e1e57bdbf2ba786e8544145647d4ab859931b0e9b157"
+      "universal": ""
     }
   },
   "dev": {
-    "latestVersionCode": 9,
-    "latestVersionName": "1.4.0-dev",
-    "changelog": "🚀 v1.4.0 更新\n- 全新应用内更新体验：发现新版本后直接在应用内下载并安装，无需跳转浏览器\n- 下载过程显示进度，并支持 SHA-256 完整性校验\n- 按设备 CPU 架构匹配安装包，下载更快更省流量\n",
+    "latestVersionCode": 10,
+    "latestVersionName": "1.4.1-dev",
+    "changelog": "🧪 v1.4.1 更新测试\n- 本版本用于验证应用内更新流程：检测新版本 → 应用内下载 → 安装\n",
     "downloadLinks": {
-      "arm64-v8a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-dev-arm64-v8a-release.apk",
-      "armeabi-v7a": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-dev-armeabi-v7a-release.apk",
-      "x86_64": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-dev-x86_64-release.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/SCNU-Schedule.apk"
     },
     "checksums": {
-      "arm64-v8a": "",
-      "armeabi-v7a": "",
-      "x86_64": ""
+      "universal": ""
     }
   }
 }
