@@ -9,9 +9,9 @@
       "x86_64": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.0/app-prod-x86_64-release.apk"
     },
     "checksums": {
-      "arm64-v8a": "",
-      "armeabi-v7a": "",
-      "x86_64": ""
+      "arm64-v8a": "5f6f8a5d870797585afa8e74bb1acc7f6a03c7cdc30de9f4f25847ff82c21e77",
+      "armeabi-v7a": "812141ac6525e947e4cde7a08c0f12b8a4378e38cf06d278c872f689de8d4db9",
+      "x86_64": "b02673a4c7f0a310ab06e1e57bdbf2ba786e8544145647d4ab859931b0e9b157"
     }
   },
   "dev": {
