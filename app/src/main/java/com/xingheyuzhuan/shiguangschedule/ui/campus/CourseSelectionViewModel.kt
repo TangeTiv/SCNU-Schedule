@@ -96,8 +96,21 @@ data class CourseSelectionUiState(
     val isLoggedIn: Boolean = false,
     /** 登录/加载失败的用户可读信息 */
     val errorMessage: String? = null,
-    /** 会话中途失效，需重新登录；**已加载列表不会被清空** */
+    /**
+     * 浏览过程中会话**中途失效**，需原地重新登录。
+     *
+     * 只用于选课页内的重登提示；**不代表"已退出模块"** ——
+     * 那个状态由 [sessionActive] 表达。早期实现把两者混用一个字段，
+     * 导致退出后再点选课卡，校园页弹窗错误显示"会话过期，重新登录"。
+     */
     val sessionExpired: Boolean = false,
+    /**
+     * 是否持有一个可用的选课会话。
+     *
+     * 退出模块后置为 false（但 [isLoggedIn] 保持 true，避免返回动画闪出
+     * 登录面板），因此校园页判断"能否直接进选课页"必须读本字段。
+     */
+    val sessionActive: Boolean = false,
     /** 用户主动退出模块时清理本地数据的提示（非错误） */
     val infoMessage: String? = null
 )
@@ -353,7 +366,11 @@ class CourseSelectionViewModel @Inject constructor(
                 val info = withContext(Dispatchers.IO) { selector.roundInfo() }
                 _roundInfo.value = info
                 _categories.value = selector.categories
-                _uiState.value = _uiState.value.copy(isLoggingIn = false, isLoggedIn = true)
+                _uiState.value = _uiState.value.copy(
+                    isLoggingIn = false,
+                    isLoggedIn = true,
+                    sessionActive = true
+                )
                 // 已选清单是过滤已选课程的依据，登录后立即拉一次
                 refreshEnrolled(silent = true)
                 onSuccess?.invoke()
@@ -363,6 +380,27 @@ class CourseSelectionViewModel @Inject constructor(
                 onError?.invoke(message)
             }
         }
+    }
+
+    /**
+     * 【校园】页登录对话框专用的登录入口。
+     *
+     * 与 [login] 的唯一差别：**先清掉 [CourseSelectionUiState.sessionExpired]**。
+     *
+     * 该字段专表"浏览中途会话失效"，若带着它进校园页弹窗，弹窗会显示
+     * "登录状态已失效，请重新输入密码" —— 而用户只是正常点击卡片准备登录，
+     * 措辞具有误导性。
+     *
+     * 顺带保证：无论上一次退出模块时留下什么状态，从这里进入的登录都是干净的。
+     */
+    fun loginFromCampusDialog(
+        account: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        _uiState.value = _uiState.value.copy(sessionExpired = false)
+        login(account, password, onSuccess = onSuccess, onError = onError)
     }
 
     /**
@@ -404,7 +442,8 @@ class CourseSelectionViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(
                     isLoggingIn = false,
                     isLoggedIn = true,
-                    sessionExpired = false
+                    sessionExpired = false,
+                    sessionActive = true
                 )
                 // 重登后已选清单可能已变化，重新拉取
                 refreshEnrolled(silent = true)
@@ -602,11 +641,12 @@ class CourseSelectionViewModel @Inject constructor(
             hasPrerequisite = fallback.hasPrerequisite,
             isRecommended = fallback.isRecommended,
             subCourseCount = subCourseCount.ifBlank { fallback.subCourseCount },
-            enrolledCount = enrolledCount,
+            enrolledCount = classEnrolledCount.ifBlank { enrolledCount },
             totalHours = fallback.totalHours,
             courseNature = courseNature,
-            // 容量来自详情接口的 jxbrl —— 这是"已满禁选"能精确判定的唯一来源
-            capacity = capacity
+            // 容量与详情已选人数来自详情接口 —— "已满禁选"精确判定的唯一依据
+            capacity = capacity,
+            classEnrolledCount = classEnrolledCount
         )
 
     /**
@@ -769,6 +809,7 @@ class CourseSelectionViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             isLoggedIn = false,
             sessionExpired = true,
+            sessionActive = false,
             errorMessage = null
         )
         pushFeedback("会话已失效，请重新登录后自动重试", isSuccess = false)
@@ -811,7 +852,8 @@ class CourseSelectionViewModel @Inject constructor(
                         is SelectionOutcome.SessionExpired -> {
                             _uiState.value = _uiState.value.copy(
                                 isLoggedIn = false,
-                                sessionExpired = true
+                                sessionExpired = true,
+                                sessionActive = false
                             )
                             pushFeedback("会话已失效，请重新登录", isSuccess = false)
                         }
@@ -887,7 +929,11 @@ class CourseSelectionViewModel @Inject constructor(
 
     private fun handleFailure(e: Throwable) {
         if (e.isSessionError()) {
-            _uiState.value = _uiState.value.copy(isLoggedIn = false, sessionExpired = true)
+            _uiState.value = _uiState.value.copy(
+                isLoggedIn = false,
+                sessionExpired = true,
+                sessionActive = false
+            )
         } else {
             _uiState.value = _uiState.value.copy(errorMessage = e.friendlyMessage())
         }
@@ -929,15 +975,16 @@ class CourseSelectionViewModel @Inject constructor(
         if (clearUserData) {
             _uiState.value = CourseSelectionUiState()
         } else {
-            // 保留 isLoggedIn，避免返回动画期间闪出登录面板；
-            // 但把 sessionExpired 置为 true —— 会话确实已被清掉，
-            // 这样 hasActiveSession() 会返回 false，下次进入必然要求重新登录，
-            // 而不会因为 isLoggedIn 仍为 true 而进到一片空白的数据页。
+            // 保留 isLoggedIn（避免返回动画期间闪出登录面板），
+            // 但把 sessionActive 置为 false —— 会话确实已被清掉，
+            // 下次进入必然要求重新登录，而不会进到一片空白的数据页。
+            // 注意：这里**不**设置 sessionExpired，那个字段专表"浏览中途失效"，
+            // 否则校园页弹窗会误显示"会话过期"。
             _uiState.value = _uiState.value.copy(
                 isLoggingIn = false,
                 errorMessage = null,
                 infoMessage = null,
-                sessionExpired = true
+                sessionActive = false
             )
         }
         // 清空共享会话，确保下次进入必须重新登录
@@ -951,10 +998,7 @@ class CourseSelectionViewModel @Inject constructor(
      * 动画中闪出登录面板），因此不能直接用来判断"能否直接进选课页"。
      * 校园页的选课卡应使用本方法决定是弹登录框还是直接进入。
      */
-    fun hasActiveSession(): Boolean {
-        val state = _uiState.value
-        return state.isLoggedIn && !state.sessionExpired
-    }
+    fun hasActiveSession(): Boolean = _uiState.value.sessionActive
 
     /**
      * 把底层异常翻译成用户可读信息。
@@ -969,12 +1013,17 @@ class CourseSelectionViewModel @Inject constructor(
         else -> message ?: "操作失败，请稍后重试"
     }
 
-    /** 判断异常是否属于"会话失效"类别 */
+    /**
+     * 判断异常是否属于"会话已失效"类别。
+     *
+     * 只认**明确信号**：教务的 `911` 状态码，或消息中显式提到"会话"。
+     *
+     * 刻意**不**匹配"登录"字样 —— `ScnuLoginException` 的消息是"登录失败: 账号或
+     * 密码错误"，那是凭据错误而非会话失效，若判成会话失效会让 UI 反复提示重登，
+     * 用户就会陷入"重登 → 又提示重登"的循环。
+     */
     private fun Throwable.isSessionError(): Boolean {
         val text = message.orEmpty()
-        return text.contains("会话") ||
-                text.contains("911") ||
-                text.contains("登录") ||
-                text.contains("未返回")
+        return text.contains("会话") || text.contains("911")
     }
 }

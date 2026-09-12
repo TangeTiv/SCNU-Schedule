@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -131,7 +132,12 @@ internal fun ClassSelectionSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState
+        sheetState = sheetState,
+        // 去掉弹层自身的层级感：不加深色遮罩、无色调高程、容器色与页面一致，
+        // 让它看起来是从底部展开的一块面板，而不是浮起来的卡片
+        scrimColor = Color.Transparent,
+        tonalElevation = 0.dp,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer
     ) {
         Column(
             modifier = Modifier
@@ -323,25 +329,16 @@ private fun ClassRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = clazz.className.ifBlank { clazz.courseName.ifBlank { "—" } },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isFull) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        InfoBadge(
-                            text = stringResource(R.string.campus_course_selection_full_badge),
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-                // 人数：已满用错误色，未满用主色，便于一眼分辨
+                Text(
+                    text = clazz.className.ifBlank { clazz.courseName.ifBlank { "—" } },
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                // 人数行：容量**已知且已满**时用错误色；容量未知时只显示已选人数，
+                // 不做任何"已满"判断（列表/详情接口字段差异见 SelectableCourse.isFull）
                 if (clazz.occupancyText.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     InfoLine(
@@ -381,7 +378,7 @@ private fun ClassRow(
             ) {
                 Text(
                     text = when {
-                        isFull -> stringResource(R.string.campus_course_selection_class_full)
+                        isFull -> stringResource(R.string.campus_course_selection_class_full_action)
                         clazz.hasSubCourses ->
                             stringResource(R.string.campus_course_selection_pick_sub_course_action)
                         else -> stringResource(R.string.campus_course_selection_select_action)
@@ -668,7 +665,9 @@ internal fun CourseSelectionLoginDialog(
             Button(
                 onClick = {
                     inlineError = null
-                    viewModel.login(
+                    // 走校园页专用入口：会先清掉"浏览中途失效"标记，
+                    // 避免弹窗自己显示"会话过期，重新登录"
+                    viewModel.loginFromCampusDialog(
                         account = account.trim(),
                         password = password,
                         onSuccess = onSuccess,

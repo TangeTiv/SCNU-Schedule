@@ -221,7 +221,12 @@ Hilt **隐式绑定**注入 → 默认 unscoped → 每次注入都是新实例�
 |---|---|
 | **ViewModel 作用域** | `NavDisplay` 用 `rememberViewModelStoreNavEntryDecorator()`，ViewModel 作用域是**单个 NavEntry**。选课 ViewModel 必须创建在 `AppNavigation`（NavDisplay 之上）并透传，否则从校园页导航过去时它会被销毁、登录态丢失 |
 | **退出清会话的时机** | 挂在**显式返回**（顶部返回键 / `BackHandler`）上，**不能**用 `onDispose` —— 去「同步课表」再回来时 ViewModel 仍存活，`onDispose` 会强迫重新登录 |
-| **退出不闪登录面板** | `clearSession()` 默认**保留** `isLoggedIn`（否则返回动画的一帧会重组出密码输入框）。代价是 `isLoggedIn` 不再等价于"会话可用"，故新增 `hasActiveSession()`，校园页选课卡必须用它判断 |
+| **退出不闪登录面板** | `clearSession()` 默认**保留** `isLoggedIn`（否则返回动画的一帧会重组出密码输入框）。代价是 `isLoggedIn` 不再等价于"会话可用"，故新增 `sessionActive` 字段与 `hasActiveSession()`，校园页选课卡必须用它判断 |
+| **三个会话状态字段不可混用** | `isLoggedIn`＝"当前该显示数据页还是登录面板"；`sessionExpired`＝"浏览中途失效"（只影响页面内重登提示的措辞）；`sessionActive`＝"会话真实可用"。早期把"已退出模块"也写进 `sessionExpired`，导致退出后再点选课卡，校园页弹窗误显示"会话过期，请重新登录"，重登后循环弹框 |
+| **`isSessionError()` 不能匹配"登录"字样** | `ScnuLoginException` 的消息是"登录失败: 账号或密码错误"，那是凭据错误而非会话失效。若判成会话失效，UI 会反复提示重登，用户陷入"重登 → 又提示重登"的循环。只认 `911` 与"会话"两类明确信号 |
+| **已满判定只用容量字段** | 详情接口：`jxbrs`（已选）/ `jxbrl`（容量），精确判定。列表接口：**只有 `yxzrs`，完全没有容量字段**（脚本 `_norm_course` 亦未提取）。因此 `SelectableCourse.isFull` 在容量未知时**一律返回 false**，绝不猜测。曾经用"已选人数 ≥ 60"兜底，会把有余量的课程误标为已满 |
+| **弹窗内不重复标注"已满"** | 课程卡 Badge 用「已满」，教学班按钮用「名额已满」，两种措辞避免同一屏出现两个"已满" |
+
 | **分页竞态** | `loadNextBatch(forCategory)` 的类别在**调用瞬间捕获**并取消上一个在途 Job。早期实现读 `_selectedCategory.value`，切 Tab 时会把旧类别数据写进新类别缓存桶 |
 | **视口未填满** | 滚动触发续拉有盲区：不满屏时列表无法滚动，`shouldLoadMore` 永不触发。`CourseBrowserPane` 额外用一个 `LaunchedEffect` 在数据落地后主动补拉直到填满 |
 | **已选判定** | 必须用 `isEnrolledIn()` / `isCourseEnrolled()` **多口径**（`kch_id` + `kch`，空串不参与）。只比 `kch_id` 会因某侧字段为空而漏判，这是"已选课程仍出现在可选列表"的根因 |

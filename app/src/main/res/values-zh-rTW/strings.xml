@@ -638,5 +638,7 @@
     <string name="campus_course_selection_sub_course_hint">需先選擇子課程</string>
     <string name="campus_course_selection_time_pending">時間待定</string>
     <string name="campus_course_selection_full_badge">已滿</string>
+    <!-- 教學班按鈕文案：與「已滿」Badge 區分措辭，避免同屏出現兩個「已滿」 -->
+    <string name="campus_course_selection_class_full_action">名額已滿</string>
 
 </resources>

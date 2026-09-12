@@ -150,13 +150,15 @@ data class SelectableCourse(
     /** 任务总学时 */
     @SerialName("rwzxs") val totalHours: String = "",
     @SerialName("kzmc") val courseNature: String = "",
+    /** 教学班容量（`jxbrl`）。列表接口不返回，仅详情接口有；空串表示**容量未知** */
+    @SerialName("jxbrl") val capacity: String = "",
     /**
-     * 教学班容量（`jxbrl`）。
+     * 教学班已选人数（`jxbrs`）。
      *
-     * 课程列表接口**不返回**该字段，只有教学班详情接口才有；
-     * 因此列表层只能靠 [enrolledCount] 兜底判断，见 [isFull]。
+     * 详情接口用 `jxbrs` 表示已选人数，而列表接口用 `yxzrs`；两者语义相同、
+     * 字段名不同，故独立声明。由 ViewModel 映射时择一填入 [enrolledCount]。
      */
-    @SerialName("jxbrl") val capacity: String = ""
+    @SerialName("jxbrs") val classEnrolledCount: String = ""
 ) {
     /** 去重键：优先 `jxb_id`，缺失时退化为 `kch_id`（对应 Python `key = jxb_id or kch_id`） */
     val dedupeKey: String get() = classId.ifBlank { courseId }
@@ -168,35 +170,39 @@ data class SelectableCourse(
     val isRetakeOrMinor: Boolean get() = isRetake == "1" || isMinor == "1"
 
     /**
-     * 是否已满。
+     * 是否**已满**。
      *
-     * ## 两级判定
+     * ## 只在容量已知时才判定（重要）
      *
-     * 1. **精确判定**：若 [capacity] 有值（来自教学班详情接口的 `jxbrl`），
-     *    与 [enrolledCount] 比较，语义与脚本 `jxbrs >= jxbrl > 0` 一致
-     * 2. **宽松兜底**：容量未知时（课程列表接口不返回 `jxbrl`），
-     *    用已选人数是否达到 [FULL_FALLBACK_THRESHOLD] 作为提示
+     * 课程列表接口不返回容量 `jxbrl`（脚本 `_norm_course` 也只取 `yxzrs`），
+     * 因此列表层**没有依据**判断是否已满。早期实现用"已选人数 ≥ 60"这种
+     * 凭空设定的阈值兜底，会把有余量的课程误标为已满 —— 已废弃。
      *
-     * 之所以要兜底：列表接口拿不到容量，而用户需要一眼看出"这门课大概满了"。
-     * 真正的禁选判定在教学班面板里用精确口径完成。
+     * 现在的语义是：**容量未知 → 一律返回 false（不标注、不禁选）**。
+     * 用户仍可点进去看教学班详情，那里有精确的 `jxbrs`/`jxbrl` 可以判定。
      */
     val isFull: Boolean
         get() {
-            val selected = enrolledCount.toDoubleOrNull()
-            val cap = capacity.toDoubleOrNull()
-            return when {
-                selected == null -> false
-                cap != null && cap > 0 -> selected >= cap
-                else -> selected >= FULL_FALLBACK_THRESHOLD
-            }
+            val cap = capacity.toDoubleOrNull() ?: return false
+            if (cap <= 0) return false
+            // 详情接口已选人数优先 jxbrs，回退 yxzrs（与脚本 `:509-511` 一致）
+            val selected = (classEnrolledCount.ifBlank { enrolledCount }).toDoubleOrNull()
+                ?: return false
+            return selected >= cap
         }
 
-    /** 已选/容量展示串，如 "45/60"；容量未知时退化为 "45 人" */
+    /** 是否具备容量信息（决定 [isFull] 与 [occupancyText] 是否可信） */
+    val hasCapacityInfo: Boolean get() = (capacity.toDoubleOrNull() ?: 0.0) > 0
+
+    /** 已选/容量展示串，如 "45/60"；容量未知时只显示已选人数 */
     val occupancyText: String
-        get() = when {
-            enrolledCount.isBlank() && capacity.isBlank() -> ""
-            capacity.isBlank() -> "$enrolledCount 人"
-            else -> "$enrolledCount/$capacity"
+        get() {
+            val selected = classEnrolledCount.ifBlank { enrolledCount }
+            return when {
+                selected.isBlank() && capacity.isBlank() -> ""
+                capacity.isBlank() -> "$selected 人"
+                else -> "$selected/$capacity"
+            }
         }
 }
 
@@ -226,6 +232,13 @@ data class CourseClass(
     @SerialName("jxdd") val classLocation: String = "",
     /** 教学班容量 */
     @SerialName("jxbrl") val capacity: String = "",
+    /**
+     * 教学班已选人数（`jxbrs`）。
+     *
+     * 详情接口用 `jxbrs`，列表接口用 `yxzrs`；两者语义相同、字段名不同。
+     * 已满判定优先取本字段，缺失时回退 [enrolledCount]（对应脚本 `:509-511`）。
+     */
+    @SerialName("jxbrs") val classEnrolledCount: String = "",
     /** 已选人数 */
     @SerialName("yxzrs") val enrolledCount: String = "",
     /** 子课程数 */
@@ -452,18 +465,6 @@ sealed interface SelectionOutcome {
 // ═══════════════════════════════════════════════════════════════════════════
 // 选课模块常量
 // ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * 容量未知时的"疑似已满"人数阈值。
- *
- * 课程列表接口不返回教学班容量 `jxbrl`，只有 `yxzrs`（已选人数），
- * 因此列表层无法精确判断已满。取 60 作为常见教学班容量上限的保守估计：
- * 已选人数达到该值即提示"已满"，避免用户点了才发现选不上。
- *
- * **注意**：这只是展示层提示，真正的禁选在教学班面板里用
- * `jxbrl` 精确比较后禁用按钮（见 [CourseClass.isFull]）。
- */
-const val FULL_FALLBACK_THRESHOLD = 60.0
 
 /**
  * 解析教务教师原始串为显示名。

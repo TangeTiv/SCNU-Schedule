@@ -638,5 +638,7 @@
     <string name="campus_course_selection_sub_course_hint">Pick sub-courses first</string>
     <string name="campus_course_selection_time_pending">Time TBD</string>
     <string name="campus_course_selection_full_badge">Full</string>
+    <!-- Class button label, worded differently from the "Full" badge above -->
+    <string name="campus_course_selection_class_full_action">No seats</string>
 
 </resources>
