@@ -295,21 +295,61 @@ class ScnuCourseSelector @Inject constructor(
             return
         }
 
-        val fragment = parseHiddenInputs(body)
         val merged = context.raw.toMutableMap()
+        val found = StringBuilder()
         for (key in DISPLAY_FIELDS) {
-            val value = fragment[key]
-            if (!value.isNullOrBlank() && merged[key].isNullOrBlank()) {
-                merged[key] = value
+            // 与脚本 `_load_display_fields()` 完全一致的取法：
+            // 只匹配 <input ... name="X" ...>，**不要求 type=hidden**。
+            // 早期实现复用了 parseHiddenInputs（强制 type=hidden），
+            // 比脚本多一个限制，可能因此拿不到 qzz。
+            val value = extractInputValue(body, key)
+            if (!value.isNullOrBlank()) {
+                found.append("$key=$value ")
+                // 页面真值优先：首页已有非空值时不覆盖
+                if (merged[key].isNullOrBlank()) merged[key] = value
             }
         }
         context = SelectionContext(merged)
 
+        // 记录片段里**实际找到**的值（而非合并后的），便于定位取不到 qzz 的情况
+        Log.d(TAG, "display 片段字段: $found")
         Log.d(
             TAG,
-            "display 补齐: xklc=${merged["xklc"]} xklcmc=${merged["xklcmc"]} " +
+            "display 合并后: xklc=${merged["xklc"]} xklcmc=${merged["xklcmc"]} " +
                     "qzz=${merged["qzz"]} 选课时间=${merged["xkkssj"]}~${merged["xkjssj"]}"
         )
+
+        // qzz = 剩余权重，选课接口的 qz 取它。取不到就会退化为默认 100，
+        // 在用户已消耗权重时必然触发教务报错「权重值总和不可以超过100」。
+        // 因此这里必须显式告警，不能静默退化。
+        if (merged["qzz"].isNullOrBlank()) {
+            Log.w(
+                TAG,
+                "⚠️ 未能从 display 片段取得剩余权重 qzz（片段中=${extractInputValue(body, "qzz")}），" +
+                        "选课将退化使用 qz=100，若已消耗权重则会被教务拒绝"
+            )
+        }
+    }
+
+    /**
+     * 从 HTML 中提取指定 `<input>` 的 `value` 属性值。
+     *
+     * 严格对应脚本 `_load_display_fields()` 的两段正则：
+     * 1. `<input[^>]*name=["']X["'][^>]*>` 取出整个标签（属性顺序无关）
+     * 2. 在标签内 `value=["']([^"']*)["']` 取出值
+     *
+     * **刻意不要求 `type="hidden"`**，因为脚本也没有这个要求。
+     *
+     * @return 标签不存在时返回 null；存在但无 value 时返回空串
+     */
+    private fun extractInputValue(html: String, name: String): String? {
+        val tagRegex = Regex(
+            """<input[^>]*name\s*=\s*["']${Regex.escape(name)}["'][^>]*>""",
+            RegexOption.IGNORE_CASE
+        )
+        val tag = tagRegex.find(html)?.value ?: return null
+        val valueRegex = Regex("""value\s*=\s*["']([^"']*)["']""", RegexOption.IGNORE_CASE)
+        return valueRegex.find(tag)?.groupValues?.getOrNull(1) ?: ""
     }
 
     /**
