@@ -30,6 +30,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusScreen
+import com.xingheyuzhuan.shiguangschedule.ui.campus.CourseSelectionScreen
+import com.xingheyuzhuan.shiguangschedule.ui.campus.CourseSelectionViewModel
 import com.xingheyuzhuan.shiguangschedule.ui.campus.ExamScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.GradeScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.ScnuVerificationScreen
@@ -100,6 +102,17 @@ class MainActivity : AppCompatActivity() {
 @Composable
 fun AppNavigation(startDestination: Destination) {
     val backStack = rememberNavBackStack(startDestination)
+
+    // ── 选课模块的 ViewModel 提升到 NavDisplay 之上 ──
+    //
+    // 必要性：NavDisplay 使用 rememberViewModelStoreNavEntryDecorator，ViewModel
+    // 的作用域是**单个 NavEntry**。若在 CampusScreen 内部创建，导航到选课页时
+    // Destination.Campus 的 entry 退出组合 → ViewModel 被销毁 → 登录态与类别缓存
+    // 丢失，选课页会再次索要密码。
+    //
+    // 提升到此处后，【校园】页的登录对话框与选课页共用同一个实例，
+    // 登录成功导航过去即可直接使用，无需二次登录。
+    val courseSelectionViewModel: CourseSelectionViewModel = hiltViewModel()
 
     val onNavigate: (Destination) -> Unit = remember(backStack) {
         { dest ->
@@ -172,7 +185,8 @@ fun AppNavigation(startDestination: Destination) {
                 ScreenContent(
                     targetDest = destination,
                     onNavigate = onNavigate,
-                    onBack = onBack
+                    onBack = onBack,
+                    courseSelectionViewModel = courseSelectionViewModel
                 )
             }
         }
@@ -183,11 +197,18 @@ fun AppNavigation(startDestination: Destination) {
 fun ScreenContent(
     targetDest: Destination,
     onNavigate: (Destination) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /**
+     * 选课模块共享的 ViewModel。
+     *
+     * 在 [AppNavigation] 中创建（位于 NavDisplay 之上）并透传，
+     * 使【校园】页的登录对话框与选课页可共用登录态，详见 [AppNavigation] 注释。
+     */
+    courseSelectionViewModel: CourseSelectionViewModel
 ) {
     when (targetDest) {
         Destination.CourseSchedule -> WeeklyScheduleScreen(onNavigate, onBack)
-        Destination.Campus -> CampusScreen(onNavigate, onBack)
+        Destination.Campus -> CampusScreen(onNavigate, onBack, courseSelectionViewModel = courseSelectionViewModel)
         Destination.Settings -> SettingsScreen(onNavigate, onBack)
         Destination.TodaySchedule -> TodayScheduleScreen(onNavigate, onBack)
         Destination.TimeSlotSettings -> TimeSlotManagementScreen(onNavigate, onBack)
@@ -208,6 +229,11 @@ fun ScreenContent(
         Destination.ScnuVerification -> ScnuVerificationScreen(onNavigate, onBack)
         Destination.Grades -> GradeScreen(onBack = onBack)
         Destination.Exams -> ExamScreen(onBack = onBack)
+        Destination.CourseSelection -> CourseSelectionScreen(
+            onNavigate = onNavigate,
+            onBack = onBack,
+            viewModel = courseSelectionViewModel
+        )
         Destination.SyncSelection -> {
             SyncSelectionScreen(
                 onNavigate = onNavigate,

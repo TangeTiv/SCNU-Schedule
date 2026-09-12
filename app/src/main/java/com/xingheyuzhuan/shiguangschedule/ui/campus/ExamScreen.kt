@@ -69,10 +69,10 @@ fun ExamScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.a11y_back))
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color(0xFFFCF9F8))
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(MaterialTheme.colorScheme.surface)
             )
         },
-        containerColor = Color(0xFFFCF9F8)
+        containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
         if (allExams.isEmpty()) {
             EmptyExamState(modifier = Modifier.padding(innerPadding))
@@ -92,11 +92,11 @@ fun ExamScreen(
 @Composable
 private fun EmptyExamState(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(72.dp), tint = Color(0xFFBDBDBD))
+        Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(72.dp), tint = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(16.dp))
-        Text(stringResource(R.string.exam_no_data), fontSize = 18.sp, fontWeight = FontWeight.Medium, color = Color(0xFF757575))
+        Text(stringResource(R.string.exam_no_data), fontSize = 18.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(4.dp))
-        Text(stringResource(R.string.exam_no_data_hint), fontSize = 14.sp, color = Color(0xFF9E9E9E))
+        Text(stringResource(R.string.exam_no_data_hint), fontSize = 14.sp, color = MaterialTheme.colorScheme.outline)
     }
 }
 
@@ -132,7 +132,7 @@ private fun ExamCard(uiModel: ExamUiModel) {
     Card(
         modifier = Modifier.fillMaxWidth().alpha(if (uiModel.isFinished) 0.5f else 1f),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -140,7 +140,7 @@ private fun ExamCard(uiModel: ExamUiModel) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = exam.kcmc.ifBlank { "—" },
-                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF333333),
+                    fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                 )
                 if (uiModel.countdownText.isNotBlank()) {
@@ -153,9 +153,9 @@ private fun ExamCard(uiModel: ExamUiModel) {
 
             // 时间行
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF757575))
+                Icon(Icons.Filled.Schedule, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(6.dp))
-                Text(text = exam.kssj.ifBlank { stringResource(R.string.exam_time_pending) }, fontSize = 14.sp, color = if (exam.kssj.isBlank()) Color(0xFFF97316) else Color(0xFF555555))
+                Text(text = exam.kssj.ifBlank { stringResource(R.string.exam_time_pending) }, fontSize = 14.sp, color = if (exam.kssj.isBlank()) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Spacer(Modifier.height(6.dp))
@@ -163,9 +163,9 @@ private fun ExamCard(uiModel: ExamUiModel) {
             // 地点行
             val venue = listOf(exam.cdxqmc, exam.cdmc).filter { it.isNotBlank() }.joinToString(" ").ifBlank { stringResource(R.string.exam_venue_pending) }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF757575))
+                Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.secondary)
                 Spacer(Modifier.width(6.dp))
-                Text(text = venue, fontSize = 14.sp, color = if (venue == stringResource(R.string.exam_venue_pending)) Color(0xFFF97316) else Color(0xFF555555), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = venue, fontSize = 14.sp, color = if (venue == stringResource(R.string.exam_venue_pending)) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

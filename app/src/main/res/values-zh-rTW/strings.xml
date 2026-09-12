@@ -590,4 +590,55 @@
     <string name="campus_service_channel">校園渠道</string>
     <string name="campus_service_channel_desc">校園服務渠道</string>
 
+    <!-- 自主選課模組 -->
+    <string name="campus_course_selection">選課</string>
+    <string name="campus_course_selection_desc">自主選課與退選</string>
+    <string name="campus_course_selection_sync_hint">同步課表</string>
+    <string name="campus_course_selection_login_desc">登入統一身份認證後可查詢與選擇課程</string>
+    <string name="campus_course_selection_logging_in">正在登入…</string>
+    <string name="campus_course_selection_login_action">登入並查詢</string>
+    <string name="campus_course_selection_password_notice">密碼僅用於本次登入，不會儲存在本機</string>
+    <string name="campus_course_selection_session_expired">登入狀態已失效，請重新輸入密碼</string>
+    <string name="campus_course_selection_credit_summary">已選 %1$s 門 · %2$s 學分</string>
+    <string name="campus_course_selection_out_of_window">目前不在選課時間內，僅可瀏覽</string>
+    <string name="campus_course_selection_enrolled">已選課程</string>
+    <string name="campus_course_selection_credits">%1$s 學分</string>
+    <string name="campus_course_selection_enrolled_count">已選 %1$s 人</string>
+    <string name="campus_course_selection_capacity">人數 %1$s</string>
+    <string name="campus_course_selection_teacher">教師：%1$s</string>
+    <string name="campus_course_selection_time">時間：%1$s</string>
+    <string name="campus_course_selection_location">地點：%1$s</string>
+    <string name="campus_course_selection_sub_course_badge">含子課程</string>
+    <string name="campus_course_selection_search_hint">按課程名 / 課程號 / 教學班搜尋</string>
+    <string name="campus_course_selection_loading">正在載入…</string>
+    <string name="campus_course_selection_all_loaded">已載入全部課程</string>
+    <string name="campus_course_selection_no_courses">沒有符合條件的課程</string>
+    <string name="campus_course_selection_no_enrolled">暫無已選課程</string>
+    <string name="campus_course_selection_refresh">重新整理已選課程</string>
+    <string name="campus_course_selection_pick_class">請選擇教學班</string>
+    <string name="campus_course_selection_pick_sub_course">選擇子課程</string>
+    <string name="campus_course_selection_pick_sub_course_action">選子課程</string>
+    <string name="campus_course_selection_sub_course_desc">該教學班由多個子課程組成，請勾選需要選擇的子課程</string>
+    <string name="campus_course_selection_back_to_classes">返回教學班列表</string>
+    <string name="campus_course_selection_select_action">選課</string>
+    <string name="campus_course_selection_drop">退選</string>
+    <string name="campus_course_selection_drop_confirm_title">確認退選</string>
+    <string name="campus_course_selection_drop_confirm_action">確認退選</string>
+    <string name="campus_course_selection_drop_warning">退選後名額可能無法立即重新選上，請確認無誤</string>
+    <string name="campus_course_selection_confirm_course">課程</string>
+    <string name="campus_course_selection_confirm_class">教學班</string>
+    <string name="campus_course_selection_confirm_teacher">教師</string>
+    <string name="campus_course_selection_confirm_time">時間</string>
+    <string name="campus_course_selection_cancel">取消</string>
+    <string name="campus_course_selection_back_to_top">回到頂部</string>
+    <string name="campus_course_selection_refresh_list">重新整理列表</string>
+    <string name="campus_course_selection_class_count">%1$d 個教學班</string>
+    <string name="campus_course_selection_single_class">1 個教學班</string>
+    <string name="campus_course_selection_sub_course_hint">需先選擇子課程</string>
+    <string name="campus_course_selection_time_pending">時間待定</string>
+    <string name="campus_course_selection_full_badge">已滿</string>
+    <string name="campus_course_selection_tap_to_view_classes">點擊查看教學班與餘量</string>
+    <string name="campus_course_selection_no_classes">該課程目前沒有可選教學班（可能已選或未開放）</string>
+    <string name="campus_course_selection_classes_failed">教學班詳情取得失敗，請返回重試</string>
+
 </resources>

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Grading
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Map
@@ -39,8 +40,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,15 +71,33 @@ private val CardBackgroundColor = Color(0xFFEFE8E4)
 private val TextPrimary = Color(0xFF333333)
 private val TextSecondary = Color(0xFF666666)
 
+/**
+ * 星期名的格式化参数。
+ *
+ * 提为顶层常量而非写在 Composable 内：两者都是 immutable 的单例
+ * （[TextStyle.FULL] 为枚举、[Locale.CHINESE] 为常量），无需每帧重建，
+ * 也避免 `remember` 键值引入不必要的相等性比较。
+ */
+private val WEEKDAY_TEXT_STYLE = TextStyle.FULL
+private val WEEKDAY_LOCALE = Locale.CHINESE
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CampusScreen(
     onNavigate: (Destination) -> Unit,
     onBack: () -> Unit,
-    campusViewModel: CampusViewModel = hiltViewModel()
+    campusViewModel: CampusViewModel = hiltViewModel(),
+    // 选课模块的 ViewModel 由 MainActivity 在 NavDisplay 之上创建后传入。
+    // 不在此处 hiltViewModel()：NavDisplay 的 ViewModel 作用域是单个 NavEntry，
+    // 在此创建会在导航到选课页时被销毁，导致登录态丢失。
+    courseSelectionViewModel: CourseSelectionViewModel = hiltViewModel()
 ) {
     val campusState by campusViewModel.campusState.collectAsStateWithLifecycle()
     val isDark = LocalIsDarkTheme.current
+
+    // 选课登录对话框的显隐。点击【选课】卡片时置为 true —— 按需求
+    // 先弹框输入凭据，登录成功后才导航进选课界面，而不是直接开新页面。
+    var showSelectionLogin by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = if (isDark) MaterialTheme.colorScheme.surface else SurfaceBackgroundColor,
@@ -130,8 +152,43 @@ fun CampusScreen(
                 PrimaryServiceGrid(onNavigate = onNavigate, isDark = isDark)
             }
 
-            item { SecondaryServiceGrid(isDark = isDark) }
+            // 次功能网格与选课卡放在同一个 item 内：
+            // 这样「选课」与「图书馆资源」共享同一套列宽（各 1/3 栅格），
+            // 且两行之间只有 12dp 间距，视觉上选课卡正好落在图书馆卡正下方。
+            item {
+                Column {
+                    SecondaryServiceGrid(isDark = isDark)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TertiaryServiceGrid(
+                        isDark = isDark,
+                        onCourseSelectionClick = {
+                            // 优先读 ViewModel 的显式会话判定，
+                            // 而不是 uiState.isLoggedIn —— 退出模块后后者仍为 true
+                            // （为了不在返回动画里闪出登录面板），
+                            // 此时数据已清空，直接进入会看到一片空白页。
+                            if (courseSelectionViewModel.hasActiveSession()) {
+                                onNavigate(Destination.CourseSelection)
+                            } else {
+                                showSelectionLogin = true
+                            }
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    // ── 选课登录对话框 ──
+    // 登录成功 → 关闭对话框并导航进选课页（此时 ViewModel 已是登录态）
+    if (showSelectionLogin) {
+        CourseSelectionLoginDialog(
+            viewModel = courseSelectionViewModel,
+            onSuccess = {
+                showSelectionLogin = false
+                onNavigate(Destination.CourseSelection)
+            },
+            onDismiss = { showSelectionLogin = false }
+        )
     }
 }
 
@@ -140,7 +197,13 @@ fun CampusScreen(
 @Composable
 private fun WelcomeCard(state: CampusUiState, isDark: Boolean) {
     val weekNumber = state.weekNumber
-    val dayOfWeekName = LocalDate.now().dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE)
+    // 性能红线 3：禁止在 Composable 函数体里直接 new DateTimeFormatter /
+    // LocalDate.now() 等 —— 它们在每次重组（含滚动、动画导致的每一帧）都会重新求值。
+    // 此处用 remember 固定到首次组合；搭配 immutable 的 TextStyle/Locale 常量，
+    // 使 getDisplayName 的格式化工作整场只发生一次。
+    val dayOfWeekName = remember {
+        LocalDate.now().dayOfWeek.getDisplayName(WEEKDAY_TEXT_STYLE, WEEKDAY_LOCALE)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -384,44 +447,119 @@ private fun SmallServiceCard(
     iconBgColor: Color,
     title: String,
     modifier: Modifier = Modifier,
-    isDark: Boolean = false
+    isDark: Boolean = false,
+    /**
+     * 点击行为。
+     *
+     * 为 null 时卡片保持纯展示（现有「图书馆资源 / 校园交通 / 校园渠道」即为此状态，
+     * 本次新增选课模块**不改变它们的交互**）。
+     * 非 null 时整卡可点，但仍沿用完全相同的视觉规格。
+     */
+    onClick: (() -> Unit)? = null
 ) {
-    Card(
-        modifier = modifier.height(96.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+    val containerColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        Color.White
+    }
+
+    // 按需在可点击/不可点击两种 Card 重载之间切换，
+    // 避免给不可点击的卡片凭空加一个无意义的 onClick 语义。
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier.height(96.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(iconBgColor.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = iconBgColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
-                maxLines = 1
+            SmallServiceCardContent(icon, iconBgColor, title, isDark)
+        }
+    } else {
+        Card(
+            modifier = modifier.height(96.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            SmallServiceCardContent(icon, iconBgColor, title, isDark)
+        }
+    }
+}
+
+/** [SmallServiceCard] 的内容体，抽出来供可点击/不可点击两种卡片复用 */
+@Composable
+private fun SmallServiceCardContent(
+    icon: ImageVector,
+    iconBgColor: Color,
+    title: String,
+    isDark: Boolean
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconBgColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = iconBgColor,
+                modifier = Modifier.size(20.dp)
             )
         }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
+            maxLines = 1
+        )
+    }
+}
+
+// endregion
+
+// region 三级功能网格（选课等后续模块）
+
+/**
+ * 第三行小卡网格：选课入口。
+ *
+ * ## 为什么这样排版
+ *
+ * 「选课」必须与「图书馆资源」**尺寸一致且位于其正下方**。实现方式是让两张卡
+ * 都占用 1/3 栅格（`weight(1f)` + 相同的 12dp 间距），并让两行紧邻 ——
+ * 于是列宽天然对齐，选课卡正对图书馆卡。
+ *
+ * 右侧两格刻意留空，不填假卡：后续模块可直接占用，无需重排已有卡片。
+ */
+@Composable
+private fun TertiaryServiceGrid(
+    isDark: Boolean,
+    onCourseSelectionClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SmallServiceCard(
+            icon = Icons.Filled.EditNote,
+            iconBgColor = Color(0xFF0EA5E9),
+            title = stringResource(R.string.campus_course_selection),
+            modifier = Modifier.weight(1f),
+            isDark = isDark,
+            onClick = onCourseSelectionClick
+        )
+        // 预留位：与图书馆卡同列宽，保持网格对称
+        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 
