@@ -40,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -67,6 +68,16 @@ private val SurfaceBackgroundColor = Color(0xFFFCF9F8)
 private val CardBackgroundColor = Color(0xFFEFE8E4)
 private val TextPrimary = Color(0xFF333333)
 private val TextSecondary = Color(0xFF666666)
+
+/**
+ * 星期名的格式化参数。
+ *
+ * 提为顶层常量而非写在 Composable 内：两者都是 immutable 的单例
+ * （[TextStyle.FULL] 为枚举、[Locale.CHINESE] 为常量），无需每帧重建，
+ * 也避免 `remember` 键值引入不必要的相等性比较。
+ */
+private val WEEKDAY_TEXT_STYLE = TextStyle.FULL
+private val WEEKDAY_LOCALE = Locale.CHINESE
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,7 +154,13 @@ fun CampusScreen(
 @Composable
 private fun WelcomeCard(state: CampusUiState, isDark: Boolean) {
     val weekNumber = state.weekNumber
-    val dayOfWeekName = LocalDate.now().dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE)
+    // 性能红线 3：禁止在 Composable 函数体里直接 new DateTimeFormatter /
+    // LocalDate.now() 等 —— 它们在每次重组（含滚动、动画导致的每一帧）都会重新求值。
+    // 此处用 remember 固定到首次组合；搭配 immutable 的 TextStyle/Locale 常量，
+    // 使 getDisplayName 的格式化工作整场只发生一次。
+    val dayOfWeekName = remember {
+        LocalDate.now().dayOfWeek.getDisplayName(WEEKDAY_TEXT_STYLE, WEEKDAY_LOCALE)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
