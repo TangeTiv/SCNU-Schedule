@@ -333,16 +333,27 @@ private fun ClassRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = clazz.className.ifBlank { clazz.courseName.ifBlank { "—" } },
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                // 人数行：容量**已知且已满**时用错误色；容量未知时只显示已选人数，
-                // 不做任何"已满"判断（列表/详情接口字段差异见 SelectableCourse.isFull）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = clazz.className.ifBlank { clazz.courseName.ifBlank { "—" } },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    // 已满标注。全屏范围内只此一处（列表卡片已不再显示"已满"），
+                    // 不会再出现"同一屏两个已满标识"
+                    if (isFull) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        InfoBadge(
+                            text = stringResource(R.string.campus_course_selection_full_badge),
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                // 已选数量 / 课程容量（来自详情接口 jxbrs / jxbrl）
                 if (clazz.occupancyText.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     InfoLine(
@@ -382,7 +393,8 @@ private fun ClassRow(
             ) {
                 Text(
                     text = when {
-                        isFull -> stringResource(R.string.campus_course_selection_class_full_action)
+                        // 已满时按钮保持"选课"文案但禁用：配合标题旁的「已满」Badge，
+                        // 全屏只有一个"已满"字样，不会重复标注
                         clazz.hasSubCourses ->
                             stringResource(R.string.campus_course_selection_pick_sub_course_action)
                         else -> stringResource(R.string.campus_course_selection_select_action)
