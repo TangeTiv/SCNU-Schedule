@@ -589,17 +589,21 @@ class CourseSelectionViewModel @Inject constructor(
     /**
      * 拉取某课程的全部教学班详情。
      *
-     * ## 顺带按 `kch_id` 分组（修正"同一门课重复出现"）
+     * ## 为什么必须传整个 [group] 而不是单个课程
      *
-     * 教学班详情接口在**同一次请求**里也会返回同一 `kch_id` 的多条记录
-     * （例如理论课与实验课各自成行）。若原样平铺，用户会看到同一门课
-     * 重复列出。此处以 `kch_id` 分组并同步去重，保证一门课只处理一次。
+     * 教学班详情接口**不返回 `jxbmc`（教学班名）与 `jxbzls`（子课程数）**，
+     * 这两个字段只能从课程列表的**同一个 `jxb_id`** 那条记录回填。
+     * 若只拿组内第一条去补，多教学班课程的其余教学班就会显示空名称，
+     * 且 `jxbzls` 缺失会导致**含多子课程的教学班被误判为单子课程**——
+     * 提交时只传一个 `do_jxb_id`，结果是选课不完整。
+     *
+     * 因此这里接收整个分组，建立 `jxb_id → 列表项` 映射逐个回填。
      *
      * @param onLoaded 回调在主线程执行，供 UI 弹出选择面板
      * @param onError 失败时的用户可读信息
      */
     fun loadClasses(
-        course: SelectableCourse,
+        group: CourseGroup,
         onLoaded: (List<CourseGroup>) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -607,20 +611,26 @@ class CourseSelectionViewModel @Inject constructor(
             runCatching {
                 withContext(Dispatchers.IO) {
                     selector.classesOf(
-                        courseId = course.courseId.ifBlank { course.courseCode },
+                        courseId = group.course.courseId.ifBlank { group.course.courseCode },
                         category = _selectedCategory.value
                     )
                 }
             }.onSuccess { classes ->
                 val groups = withContext(Dispatchers.Default) {
+                    // 列表项按 jxb_id 建索引，供回填 jxbmc / jxbzls
+                    val listByJxbId = group.classes.associateBy { it.classId }
+
                     classes
                         .groupBy { it.courseId.ifBlank { it.courseCode } }
-                        .map { (key, group) ->
-                            CourseGroup(
-                                key = key,
-                                course = group.first().toSelectableCourse(fallback = course),
-                                classes = group.map { it.toSelectableCourse(fallback = course) }
-                            )
+                        .map { (key, detailRows) ->
+                            val mapped = detailRows.map { detail ->
+                                // 详情行的 classId 即 jxb_id，用它精确匹配列表项
+                                val fromList = listByJxbId[detail.classId]
+                                detail.toSelectableCourse(
+                                    fallback = fromList ?: group.course
+                                )
+                            }
+                            CourseGroup(key = key, course = mapped.first(), classes = mapped)
                         }
                 }
                 onLoaded(groups)
@@ -637,7 +647,11 @@ class CourseSelectionViewModel @Inject constructor(
      * 与列表接口的差异必须在这里对齐，否则提交会失败：
      * - **`classId` 取 `doJxbId`** —— 选课提交真正需要的是 `do_jxb_id`，
      *   而非列表返回的 `jxb_id`（两者不是同一个值）
-     * - `subCourseCount` 从详情接口的 `jxbzls` 带入，供 UI 判断是否需要勾选子课程
+     * - **`className` / `subCourseCount` 必须从列表回填** —— 详情接口不返回
+     *   `jxbmc` 与 `jxbzls`，缺失会导致教学班无名、并把多子课程教学班
+     *   误判成单子课程
+     *
+     * @param fallback 同一 `jxb_id` 的**列表项**（由调用方按 jxb_id 精确匹配后传入）
      */
     private fun CourseClass.toSelectableCourse(fallback: SelectableCourse): SelectableCourse =
         SelectableCourse(
@@ -646,7 +660,8 @@ class CourseSelectionViewModel @Inject constructor(
             courseName = courseName.ifBlank { fallback.courseName },
             credits = credits.ifBlank { fallback.credits },
             classId = doJxbId.ifBlank { classId },
-            className = className,
+            // 详情为空，必须回填列表的 jxbmc
+            className = className.ifBlank { fallback.className },
             rankInBatch = fallback.rankInBatch,
             typeCode = fallback.typeCode,
             isRetake = isRetake,

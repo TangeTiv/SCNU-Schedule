@@ -88,6 +88,34 @@ class ScnuCourseSelector @Inject constructor(
         private const val P_SUB = "/xsxk/zzxkyzb_xkZyDisplayZzxkYzbZjxb.html"
 
         /**
+         * 选课面板片段（轮次 / 选课时间 / **权重余量** 的真实来源）。
+         *
+         * **会话顺序要求**：必须先 GET 过选课首页再调本接口，否则服务端返回 911。
+         * 首页 HTML 里完全没有这些字段（浏览器是 JS 把本片段的 HTML 注入进
+         * `#displayBox`），所以只抓首页是拿不到的。
+         */
+        private const val P_DISPLAY = "/xsxk/zzxkyzb_cxZzxkYzbDisplay.html"
+
+        /**
+         * 从 Display 片段补齐的字段。
+         *
+         * 其中 [qzz] 是**选课权重余量**：选课接口的 `qz` 参数取它。
+         * 若取不到而退化为默认 `100`，在用户已消耗过权重时会触发教务报错
+         * 「权重值总和不可以超过100」。
+         */
+        private val DISPLAY_FIELDS = listOf(
+            "xklc", "xklcmc", "xkkssj", "xkjssj", "rwlx", "xkly",
+            "bklx_id", "rlkz", "cdrlkz", "rlzlkz", "xszxzt", "qzz"
+        )
+
+        /**
+         * 其他院系的课程号前缀（抓包文档实测值）。
+         *
+         * 主修课程列表中若出现这些前缀，说明规则参数缺失导致服务端忽略了专业筛选。
+         */
+        private val FOREIGN_DEPT_PREFIXES = listOf("03A", "09ET", "26", "28")
+
+        /**
          * 服务器每批推送条数（客户端 kcrow 窗口大小）。
          *
          * 教务并非标准服务端分页：请求窗口 `ks..js` 后，服务器可能推送超出该窗口的
@@ -225,7 +253,63 @@ class ScnuCourseSelector @Inject constructor(
         context = SelectionContext(enriched)
         categories = parseCategories(html)
         isLoggedIn = true
+
+        // ── 补齐 Display 片段字段（轮次号 / 选课时间 / 权重余量 qzz）──
+        // 必须放在首页之后：服务端对 P_DISPLAY 有会话顺序要求，先首页再片段，
+        // 否则返回 911。失败不影响主流程，只是少几个字段。
+        loadDisplayFields()
         context
+    }
+
+    /**
+     * 从「选课面板片段」补齐首页拿不到的字段。
+     *
+     * 对应新版脚本 `_load_display_fields()`。首页 HTML 里没有 `xklc`（轮次号）、
+     * `qzz`（**权重余量**）等字段 —— 浏览器是请求本片段后用 JS 注入页面的，
+     * 所以只抓首页永远拿不到。
+     *
+     * **只在首页为空时覆盖**：页面真值优先，避免把已抓到的值改坏。
+     */
+    private fun loadDisplayFields() {
+        val tab = categories.firstOrNull() ?: return
+        val params = linkedMapOf(
+            "xkkz_id" to tab.controlId,
+            "kklxdm" to tab.typeCode,
+            "xszxzt" to "1",
+            "njdm_id" to tab.gradeId,
+            "zyh_id" to tab.majorId,
+            "kspage" to "0",
+            "jspage" to "0"
+        )
+
+        val body = runCatching {
+            postForm("$JWXT$P_DISPLAY?gnmkdm=$GNMKDM", params, INDEX_URL).second
+        }.getOrElse { e ->
+            Log.w(TAG, "display 片段请求失败: ${e.message}")
+            return
+        }
+
+        // 无 xklc 说明是 911 或异常页，忽略即可（脚本同样处理）
+        if (!body.contains("xklc")) {
+            Log.w(TAG, "display 片段未含 xklc，可能会话顺序不符或返回异常页")
+            return
+        }
+
+        val fragment = parseHiddenInputs(body)
+        val merged = context.raw.toMutableMap()
+        for (key in DISPLAY_FIELDS) {
+            val value = fragment[key]
+            if (!value.isNullOrBlank() && merged[key].isNullOrBlank()) {
+                merged[key] = value
+            }
+        }
+        context = SelectionContext(merged)
+
+        Log.d(
+            TAG,
+            "display 补齐: xklc=${merged["xklc"]} xklcmc=${merged["xklcmc"]} " +
+                    "qzz=${merged["qzz"]} 选课时间=${merged["xkkssj"]}~${merged["xkjssj"]}"
+        )
     }
 
     /**
@@ -345,6 +429,21 @@ class ScnuCourseSelector @Inject constructor(
         }
 
         // 本批未满 → 已到末尾（对应脚本 `if len(rows) < per_page: break`）
+        //
+        // 自检断言（来自抓包文档的验收项）：主修课程(01)若混入其他院系的课程号，
+        // 说明规则参数缺失 —— 服务端**不会报错**，而是静默忽略专业筛选并返回全校课程。
+        // 实测正确值约为 31 门课 / 70 个教学班；返回数百条即为异常。
+        if (category.typeCode == "01") {
+            val foreign = rows.count { c -> FOREIGN_DEPT_PREFIXES.any { c.courseCode.startsWith(it) } }
+            if (foreign > 0) {
+                Log.w(
+                    TAG,
+                    "课程列表疑似参数缺失：主修课程中 ${foreign}/${rows.size} 条课程号属于其他院系" +
+                            "（参数应为 47 项且含 DEFAULT_RULE_FLAGS 兜底）"
+                )
+            }
+        }
+
         CourseBatch(
             courses = rows,
             batch = p,

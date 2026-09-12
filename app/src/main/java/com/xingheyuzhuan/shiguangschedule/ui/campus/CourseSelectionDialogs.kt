@@ -114,7 +114,7 @@ internal fun ClassSelectionSheet(
         isLoadingClasses = true
         hasDetailError = false
         viewModel.loadClasses(
-            course = group.course,
+            group = group,
             onLoaded = { groups ->
                 // 详情接口同样按 kch_id 分组；取与当前课程对应的那组
                 detailGroups = groups
