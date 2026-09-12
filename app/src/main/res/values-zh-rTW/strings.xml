@@ -621,7 +621,6 @@
     <string name="campus_course_selection_sub_course_desc">該教學班由多個子課程組成，請勾選需要選擇的子課程</string>
     <string name="campus_course_selection_back_to_classes">返回教學班列表</string>
     <string name="campus_course_selection_select_action">選課</string>
-    <string name="campus_course_selection_class_full">已滿</string>
     <string name="campus_course_selection_drop">退選</string>
     <string name="campus_course_selection_drop_confirm_title">確認退選</string>
     <string name="campus_course_selection_drop_confirm_action">確認退選</string>
@@ -638,8 +637,6 @@
     <string name="campus_course_selection_sub_course_hint">需先選擇子課程</string>
     <string name="campus_course_selection_time_pending">時間待定</string>
     <string name="campus_course_selection_full_badge">已滿</string>
-    <!-- 教學班按鈕文案：與「已滿」Badge 區分措辭，避免同屏出現兩個「已滿」 -->
-    <string name="campus_course_selection_class_full_action">名額已滿</string>
     <string name="campus_course_selection_tap_to_view_classes">點擊查看教學班與餘量</string>
     <string name="campus_course_selection_no_classes">該課程目前沒有可選教學班（可能已選或未開放）</string>
     <string name="campus_course_selection_classes_failed">教學班詳情取得失敗，請返回重試</string>
