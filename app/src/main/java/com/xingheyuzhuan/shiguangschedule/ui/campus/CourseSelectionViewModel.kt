@@ -762,6 +762,15 @@ class CourseSelectionViewModel @Inject constructor(
                         is SelectionOutcome.ClassFull -> {
                             pushFeedback("${course.courseName} 名额已满，请选择其他教学班", isSuccess = false)
                         }
+                        is SelectionOutcome.ParameterRejected -> {
+                            // 教务拒绝提交（flag=0）。**绝不引导重登** ——
+                            // 这是参数校验问题，重登没有意义，只会让用户陷入死循环。
+                            pushFeedback(
+                                "教务拒绝了本次提交：${result.rawMessage}。" +
+                                        "若反复出现请尝试先刷新课程列表再选",
+                                isSuccess = false
+                            )
+                        }
                         is SelectionOutcome.SessionExpired -> {
                             onSessionExpired(course, effectiveCategory, doJxbId, pickedSubCourses)
                         }
@@ -878,6 +887,13 @@ class CourseSelectionViewModel @Inject constructor(
                         is SelectionOutcome.Failure -> {
                             // 透传教务原文（_DROP_MSG），而非笼统"失败"
                             pushFeedback(result.rawMessage.ifBlank { "退选失败" }, isSuccess = false)
+                        }
+                        is SelectionOutcome.ParameterRejected -> {
+                            // 教务拒绝退选（code=4 非法访问）——同样不引导重登
+                            pushFeedback(
+                                "教务拒绝了退选：${result.rawMessage}。请刷新后重试",
+                                isSuccess = false
+                            )
                         }
                         is SelectionOutcome.AlreadyEnrolled, is SelectionOutcome.ClassFull -> {
                             pushFeedback("退选返回了意外结果，请刷新后确认", isSuccess = false)

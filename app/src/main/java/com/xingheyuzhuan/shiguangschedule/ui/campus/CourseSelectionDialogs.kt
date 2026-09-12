@@ -1,5 +1,6 @@
 package com.xingheyuzhuan.shiguangschedule.ui.campus
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -133,11 +135,11 @@ internal fun ClassSelectionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        // 去掉弹层自身的层级感：不加深色遮罩、无色调高程、容器色与页面一致，
-        // 让它看起来是从底部展开的一块面板，而不是浮起来的卡片
-        scrimColor = Color.Transparent,
+        // 弹层容器用 surface：与页面表面形成明确边界，便于分辨窗口范围
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrimColor = Color.Black.copy(alpha = 0.32f),
         tonalElevation = 0.dp,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer
+        dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         Column(
             modifier = Modifier
@@ -320,7 +322,8 @@ private fun ClassRow(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        // 弹层内不放投影：卡片靠底色与页面区分即可，避免"浮起来"的层次感
+        // 用描边而非投影区分卡片：无阴影需求下，边框是最可靠的层次手段
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -431,6 +434,7 @@ private fun SubCourseRow(sub: SubCourse, checked: Boolean, onToggle: () -> Unit)
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         onClick = onToggle,
         modifier = Modifier.fillMaxWidth()
     ) {

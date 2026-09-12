@@ -1,5 +1,6 @@
 package com.xingheyuzhuan.shiguangschedule.data.network.selection
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -8,6 +9,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Named
+
+/** 选课模块日志标签，用于定位教务接口契约不符（如 flag=0） */
+private const val TAG = "ScnuCourseSelector"
 
 /**
  * 选课业务异常（网络失败、会话失效、参数缺失）。
@@ -547,6 +551,9 @@ class ScnuCourseSelector @Inject constructor(
             ?: throw CourseSelectionException("未解析到任何选课类别")
 
         val c = context
+        // 期望的课程名：对应脚本 `select()` 的 `course.get('kcmc','')`
+        val expectedCourseName = c.get("kcmc").ifBlank { course.courseName }
+
         val params = linkedMapOf(
             "rwlx" to c.get("rwlx"),
             "rlkz" to c.get("rlkz"),
@@ -554,11 +561,13 @@ class ScnuCourseSelector @Inject constructor(
             "rlzlkz" to c.get("rlzlkz"),
             "xkxnm" to c.academicYear,
             "xkxqm" to c.academicTerm,
-            "xklc" to roundNumber(),
+            "xklc" to roundNumber().ifBlank { "1" },
             "njdm_id" to tab.gradeId,
             "zyh_id" to tab.majorId,
-            // kcmc 取上下文中的原始课程名（与浏览器一致），而非列表归一化后的值
-            "kcmc" to c.get("kcmc", course.courseName),
+            // 用列表接口归一化后的课程名（即脚本的 course['kcmc']）。
+            // 早期实现从 ctx["kcmc"] 取，但 ctx 是**页面级**键值集合，
+            // 可能被页面上其他同名字段污染，与浏览器提交值不一致。
+            "kcmc" to course.courseName.ifBlank { expectedCourseName },
             "kch_id" to courseId,
             "jxb_ids" to jxbIds,
             "sxbj" to if (listOf("rlkz", "cdrlkz", "rlzlkz").any { c.get(it) == "1" }) "1" else "0",
@@ -573,16 +582,37 @@ class ScnuCourseSelector @Inject constructor(
 
         val (status, body) = postForm("$JWXT$P_SELECT?gnmkdm=$GNMKDM", params, INDEX_URL)
         val obj = runCatching { json.decodeFromString<SelectResponse>(body.trim()) }.getOrNull()
-            ?: throw CourseSelectionException("选课请求失败: HTTP $status ${body.take(200)}")
+            ?: run {
+                // 解析失败通常意味着教务返回了 HTML（未登录页 / 错误页），
+                // 打印前 300 字符便于判断到底是"会话失效"还是"参数被拒后返回了错误页"
+                Log.w(TAG, "select 响应无法解析: HTTP $status body=${body.take(300)}")
+                throw CourseSelectionException("选课请求失败: HTTP $status ${body.take(200)}")
+            }
 
         val flag = obj.flag
         val msg = obj.msg
+
+        // 诊断日志：选课是与教务的强契约交互，参数细微不一致就会失败。
+        // 记录提交参数与教务原始应答，便于定位 "非法访问(flag=0)" 的确切原因。
+        Log.d(
+            TAG,
+            "select kch_id=$courseId jxb_ids=$jxbIds kklxdm=${tab.typeCode} " +
+                    "xkkz_id=${tab.controlId} xklc=${params["xklc"]} qz=${params["qz"]} " +
+                    "sxbj=${params["sxbj"]} → HTTP $status flag=$flag msg=$msg"
+        )
+
         when {
             // flag=1 / 3 视为成功（脚本 `ok = flag in ('1', '3')`）
             flag == "1" || flag == "3" -> SelectionOutcome.Success(flag, msg)
             flag == "6" -> SelectionOutcome.AlreadyEnrolled("该教学班已选中（重复选课）")
             flag == "-1" -> SelectionOutcome.ClassFull(FLAG_MSG["-1"].orEmpty())
-            flag == "0" -> SelectionOutcome.SessionExpired(FLAG_MSG["0"].orEmpty())
+            // flag=0：脚本的原文是"非法访问（**会话失效或参数校验失败**）"，
+            // 二者含义完全不同。绝不能一律当成会话失效 —— 那会让用户陷入
+            // "选课失败 → 提示重登 → 重登 → 再选 → 又失败" 的死循环。
+            // 真正的会话失效由 HTTP 911 / 上下文抓取失败来判定。
+            flag == "0" -> SelectionOutcome.ParameterRejected(
+                msg.ifBlank { "教务拒绝本次提交（参数校验未通过）" }
+            )
             else -> SelectionOutcome.Failure(flag, msg.ifBlank { FLAG_MSG[flag] ?: "选课未成功(flag=$flag)" })
         }
     }
@@ -617,10 +647,15 @@ class ScnuCourseSelector @Inject constructor(
             "txbsfrl" to c.get("txbsfrl", "1")
         )
 
-        val (_, body) = postForm("$JWXT$P_DROP?gnmkdm=$GNMKDM", params, INDEX_URL)
+        val (status, body) = postForm("$JWXT$P_DROP?gnmkdm=$GNMKDM", params, INDEX_URL)
         val code = parseDropCode(body)
+        Log.d(TAG, "drop kch_id=$courseId jxb_ids=$classId → HTTP $status code=$code")
         if (code == "1") {
             SelectionOutcome.Success(code, "退选成功")
+        } else if (code == "4") {
+            // '4' = "警告：你正在非法访问！"，与选课的 flag=0 同源（参数校验失败），
+            // 同样不能当作会话失效
+            SelectionOutcome.ParameterRejected(DROP_MSG[code] ?: "退选被教务拒绝")
         } else {
             SelectionOutcome.Failure(code, DROP_MSG[code] ?: "退选失败(code=$code)")
         }

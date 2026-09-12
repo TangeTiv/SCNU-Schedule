@@ -458,6 +458,17 @@ sealed interface SelectionOutcome {
     /** 会话失效或参数校验失败（`flag == "0"` / HTTP 911） */
     data class SessionExpired(val rawMessage: String) : SelectionOutcome
 
+    /**
+     * 教务拒绝本次提交（`flag == "0"`）。
+     *
+     * 脚本对该码的原文是"非法访问（**会话失效或参数校验失败**）"，
+     * 两种含义必须区分：会话失效要引导重登，参数校验失败要提示用户**不要重登**
+     * （重登也无济于事），否则会陷入"选课失败 → 提示重登 → 重登 → 再选 → 又失败"。
+     *
+     * App 侧把 `flag=0` 归到本类；真正的会话失效由 HTTP 911 与上下文抓取失败判定。
+     */
+    data class ParameterRejected(val rawMessage: String) : SelectionOutcome
+
     /** 其他业务失败，[rawMessage] 为教务原文或 [`_FLAG_MSG`] 映射文案 */
     data class Failure(val flag: String, val rawMessage: String) : SelectionOutcome
 }
