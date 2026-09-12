@@ -48,6 +48,14 @@ sealed interface Destination : NavKey {
     @Serializable data object Grades : Destination
     @Serializable data object Exams : Destination
 
+    /**
+     * 自主选课（SCNU 教务 `/xsxk` 选课域）。
+     *
+     * 无参数：模块自身管理登录态与课程缓存，且**退出即清空**（临时沙盒），
+     * 因此不需要通过导航参数传递任何状态。
+     */
+    @Serializable data object CourseSelection : Destination
+
     // --- 动态传参页面 ---
 
     @Serializable

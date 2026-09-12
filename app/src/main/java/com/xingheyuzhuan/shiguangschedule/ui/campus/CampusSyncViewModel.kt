@@ -84,7 +84,13 @@ class CampusSyncViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        /** DataStore 键：上一次成功登录的学号 */
+        /**
+         * DataStore 键：上一次成功登录的学号。
+         *
+         * 由教务同步（本类）写入，被选课模块读取以预填账号 ——
+         * 两侧必须使用同一个 [androidx.datastore.preferences.core.Preferences.Key]，
+         * 故此处公开为常量，避免各模块重复声明字符串。
+         */
         val KEY_CAMPUS_ACCOUNT = stringPreferencesKey("campus_account")
     }
 

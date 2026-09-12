@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Grading
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Map
@@ -131,6 +132,8 @@ fun CampusScreen(
             }
 
             item { SecondaryServiceGrid(isDark = isDark) }
+
+            item { TertiaryServiceGrid(onNavigate = onNavigate, isDark = isDark) }
         }
     }
 }
@@ -384,44 +387,114 @@ private fun SmallServiceCard(
     iconBgColor: Color,
     title: String,
     modifier: Modifier = Modifier,
-    isDark: Boolean = false
+    isDark: Boolean = false,
+    /**
+     * 点击行为。
+     *
+     * 为 null 时卡片保持纯展示（现有「图书馆资源 / 校园交通 / 校园渠道」即为此状态，
+     * 本次新增选课模块**不改变它们的交互**）。
+     * 非 null 时整卡可点，但仍沿用完全相同的视觉规格。
+     */
+    onClick: (() -> Unit)? = null
 ) {
-    Card(
-        modifier = modifier.height(96.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+    val containerColor = if (isDark) {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        Color.White
+    }
+
+    // 按需在可点击/不可点击两种 Card 重载之间切换，
+    // 避免给不可点击的卡片凭空加一个无意义的 onClick 语义。
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = modifier.height(96.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(iconBgColor.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = iconBgColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
-                maxLines = 1
+            SmallServiceCardContent(icon, iconBgColor, title, isDark)
+        }
+    } else {
+        Card(
+            modifier = modifier.height(96.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = containerColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            SmallServiceCardContent(icon, iconBgColor, title, isDark)
+        }
+    }
+}
+
+/** [SmallServiceCard] 的内容体，抽出来供可点击/不可点击两种卡片复用 */
+@Composable
+private fun SmallServiceCardContent(
+    icon: ImageVector,
+    iconBgColor: Color,
+    title: String,
+    isDark: Boolean
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(iconBgColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = iconBgColor,
+                modifier = Modifier.size(20.dp)
             )
         }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (isDark) MaterialTheme.colorScheme.onSurface else TextPrimary,
+            maxLines = 1
+        )
+    }
+}
+
+// endregion
+
+// region 三级功能网格（选课等后续模块）
+
+/**
+ * 第三行小卡网格。
+ *
+ * 采用 2×2 栅格：本次仅「选课」占左格，右格**刻意留空**而非填一张假卡
+ * —— 后续模块可直接占用该位置，无需重排已有卡片。
+ *
+ * 之所以**不**把选课卡塞进上层 `SecondaryServiceGrid`：那一行是三张卡各占
+ * 1/3 宽（约 101dp），再加一张会把每张压到约 72dp，导致「图书馆资源」这类
+ * 5 字标题被 `maxLines = 1` 截断，属于破坏现有模块视觉的改动。
+ */
+@Composable
+private fun TertiaryServiceGrid(onNavigate: (Destination) -> Unit, isDark: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SmallServiceCard(
+            icon = Icons.Filled.EditNote,
+            iconBgColor = Color(0xFF0EA5E9),
+            title = stringResource(R.string.campus_course_selection),
+            modifier = Modifier.weight(1f),
+            isDark = isDark,
+            onClick = { onNavigate(Destination.CourseSelection) }
+        )
+        // 预留位：保持 2×2 栅格对称，供后续模块使用
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 

@@ -590,4 +590,46 @@
     <string name="campus_service_channel">Channels</string>
     <string name="campus_service_channel_desc">Service channels</string>
 
+    <!-- Course selection module -->
+    <string name="campus_course_selection">Courses</string>
+    <string name="campus_course_selection_desc">Select &amp; drop courses</string>
+    <string name="campus_course_selection_sync_hint">Sync timetable</string>
+    <string name="campus_course_selection_login_desc">Sign in to browse and select courses</string>
+    <string name="campus_course_selection_logging_in">Signing in…</string>
+    <string name="campus_course_selection_login_action">Sign in &amp; query</string>
+    <string name="campus_course_selection_password_notice">Password is used for this sign-in only and is never stored</string>
+    <string name="campus_course_selection_session_expired">Session expired, please enter your password again</string>
+    <string name="campus_course_selection_credit_summary">%1$s courses · %2$s credits</string>
+    <string name="campus_course_selection_out_of_window">Not within the selection window; browsing only</string>
+    <string name="campus_course_selection_enrolled">Selected</string>
+    <string name="campus_course_selection_credits">%1$s credits</string>
+    <string name="campus_course_selection_enrolled_count">%1$s enrolled</string>
+    <string name="campus_course_selection_capacity">Enrolled %1$s</string>
+    <string name="campus_course_selection_teacher">Teacher: %1$s</string>
+    <string name="campus_course_selection_time">Time: %1$s</string>
+    <string name="campus_course_selection_location">Venue: %1$s</string>
+    <string name="campus_course_selection_sub_course_badge">Has sub-courses</string>
+    <string name="campus_course_selection_search_hint">Search by name / code / class</string>
+    <string name="campus_course_selection_loading">Loading…</string>
+    <string name="campus_course_selection_all_loaded">All courses loaded</string>
+    <string name="campus_course_selection_no_courses">No matching courses</string>
+    <string name="campus_course_selection_no_enrolled">No courses selected yet</string>
+    <string name="campus_course_selection_refresh">Refresh selected courses</string>
+    <string name="campus_course_selection_pick_class">Choose a class</string>
+    <string name="campus_course_selection_pick_sub_course">Choose sub-courses</string>
+    <string name="campus_course_selection_pick_sub_course_action">Sub-courses</string>
+    <string name="campus_course_selection_sub_course_desc">This class consists of multiple sub-courses; tick the ones you need</string>
+    <string name="campus_course_selection_back_to_classes">Back to classes</string>
+    <string name="campus_course_selection_select_action">Select</string>
+    <string name="campus_course_selection_class_full">Full</string>
+    <string name="campus_course_selection_drop">Drop</string>
+    <string name="campus_course_selection_drop_confirm_title">Confirm drop</string>
+    <string name="campus_course_selection_drop_confirm_action">Confirm drop</string>
+    <string name="campus_course_selection_drop_warning">A dropped seat may not be available again immediately</string>
+    <string name="campus_course_selection_confirm_course">Course</string>
+    <string name="campus_course_selection_confirm_class">Class</string>
+    <string name="campus_course_selection_confirm_teacher">Teacher</string>
+    <string name="campus_course_selection_confirm_time">Time</string>
+    <string name="campus_course_selection_cancel">Cancel</string>
+
 </resources>
