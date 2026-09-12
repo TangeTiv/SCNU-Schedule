@@ -1,21 +1,21 @@
 {
   "prod": {
-    "latestVersionCode": 10,
-    "latestVersionName": "1.4.1",
-    "changelog": "🚀 v1.4.1 更新\n- 本次为维护版本，功能与 v1.4.0 保持一致\n- 优化更新流程与稳定性\n",
+    "latestVersionCode": 11,
+    "latestVersionName": "1.5.0",
+    "changelog": "🚀 v1.5.0 更新\n- 【校园】新增「自主选课」：查询课程与教学班、选课（含多子课程）、退选\n- 选课支持按类别浏览、关键字搜索，已选课程以权威清单为准\n- 课程列表按课程分组，不再重复显示；已选课程自动从列表中隐去\n- 教学班显示已选人数与容量，已满课程禁止选课并标注「已满」\n- 【考试安排】【查询成绩】适配深色模式（浅色模式保持原样）\n- 修正校园页欢迎卡每帧重算日期的性能开销",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.1/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.5.0/SCNU-Schedule.apk"
     },
     "checksums": {
-      "universal": "19cdcf731af6791ae5af23ccddd18e9a38ae2ad70c090a1d33ea5d07c1081493"
+      "universal": "19c48dc63bf3fd75437fee2da4f644126143e2813532e355ee1584ba0c91d219"
     }
   },
   "dev": {
-    "latestVersionCode": 10,
-    "latestVersionName": "1.4.1-dev",
-    "changelog": "🚀 v1.4.1 更新\n- 本次为维护版本，功能与 v1.4.0 保持一致\n- 优化更新流程与稳定性\n",
+    "latestVersionCode": 11,
+    "latestVersionName": "1.5.0-dev",
+    "changelog": "🚀 v1.5.0 更新\n- 【校园】新增「自主选课」：查询课程与教学班、选课（含多子课程）、退选\n- 选课支持按类别浏览、关键字搜索，已选课程以权威清单为准\n- 课程列表按课程分组，不再重复显示；已选课程自动从列表中隐去\n- 教学班显示已选人数与容量，已满课程禁止选课并标注「已满」\n- 【考试安排】【查询成绩】适配深色模式（浅色模式保持原样）\n- 修正校园页欢迎卡每帧重算日期的性能开销",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.4.1/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.5.0/SCNU-Schedule.apk"
     },
     "checksums": {
       "universal": ""
