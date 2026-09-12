@@ -319,16 +319,10 @@ class ScnuCourseSelector @Inject constructor(
                     "qzz=${merged["qzz"]} 选课时间=${merged["xkkssj"]}~${merged["xkjssj"]}"
         )
 
-        // qzz = 剩余权重，选课接口的 qz 取它。取不到就会退化为默认 100，
-        // 在用户已消耗权重时必然触发教务报错「权重值总和不可以超过100」。
-        // 因此这里必须显式告警，不能静默退化。
-        if (merged["qzz"].isNullOrBlank()) {
-            Log.w(
-                TAG,
-                "⚠️ 未能从 display 片段取得剩余权重 qzz（片段中=${extractInputValue(body, "qzz")}），" +
-                        "选课将退化使用 qz=100，若已消耗权重则会被教务拒绝"
-            )
-        }
+        // 说明：qzz 是权重**总上限**，不是本次投入量，因此选课的 qz 固定提交 0，
+        // 这里仅作记录用途，缺失不影响选课。
+        Log.d(TAG, "display 合并后: xklc=${merged["xklc"]} xklcmc=${merged["xklcmc"]} " +
+                "qzz(总上限)=${merged["qzz"]} 选课时间=${merged["xkkssj"]}~${merged["xkjssj"]}")
     }
 
     /**
@@ -643,7 +637,9 @@ class ScnuCourseSelector @Inject constructor(
             "rlkz" to c.get("rlkz", "0"),
             "rlzlkz" to c.get("rlzlkz", "1"),
             "rwlx" to c.get("rwlx", "1"),
-            "syqz" to c.get("qzz", "100"),
+            // syqz = 剩余**可用**权重（不是总上限 qzz）。
+            // 浏览器实测为 0；上下文里若有真实值则优先使用。
+            "syqz" to c.get("syqz", "0"),
             "zyfx_id" to c.get("zyfx_id"),
             "bh_id" to c.get("bh_id"),
             "zyh_id" to tab.majorId,
@@ -740,7 +736,21 @@ class ScnuCourseSelector @Inject constructor(
             "fxbj" to course.isMinor.ifBlank { "0" },
             "xkkz_id" to tab.controlId,
             "kklxdm" to tab.typeCode,
-            "qz" to c.get("qzz", "100"),
+            // ── 权重（qz / syqz / qzz 三者语义完全不同，切勿混用）──
+            //
+            //   qz    本门课**投入**的权重（浏览器提交 0 = 不投入）
+            //   syqz  剩余**可用**权重
+            //   qzz   权重**总上限**（100）
+            //
+            // 本系统是权重分模式：一学期所有选课投入的权重之和不得超过 qzz。
+            // 曾经写成 `c.get("qzz", "100")`——把**总上限**当成**本次投入**提交，
+            // 服务器理解为"这门课投 100 权重"，与已有投入相加必然超过 100，
+            // 报错「权重值总和不可超过100！」。
+            //
+            // 浏览器在「选子课程」弹窗里的隐藏字段实测为 qz=0 / syqz=0 / qzz=100，
+            // 故此处提交 0（不占权重），与浏览器行为一致。
+            // 若将来要支持用户自选权重，应让用户在 [0, syqz] 区间内填写。
+            "qz" to "0",
             "jcxx_id" to ""
         )
 
