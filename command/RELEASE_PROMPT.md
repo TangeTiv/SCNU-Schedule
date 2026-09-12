@@ -12,7 +12,16 @@
   - `origin` → `https://github.com/TangeTiv/SCNU-Schedule.git`（源码镜像，可选）
   - `tange` → `https://github.com/TangeTiv/shiguang_warehouse.git`（教务适配资源仓库，**与本流程无关，别动**）
 - 凭据：
-  - Gitee：已在本机配置好，`git push gitee ...` 直接可用；建 Release 用 PAT 走 API。
+  - Gitee：`git push gitee ...` 依赖**凭据管理器里已存储的凭据**，而它**可能已过期**。
+    建 Release 用 PAT 走 API。
+    > ⚠️ **v1.5.0 发版实测：存储凭据已过期**，脚本在第 2 步（推 tag）中断，报
+    > `Incorrect username or password (access token)`。注意此时 **API 用同一 PAT 是通的**，
+    > 所以「PAT 有效」不等于「`git push` 能用」——两者走的是不同凭据。
+    >
+    > 修复：把 PAT 写入凭据管理器，之后 `git push gitee` 恢复正常：
+    > ```powershell
+    > "protocol=https`nhost=gitee.com`nusername=<Gitee账号>`npassword=<PAT>`n" | git credential approve
+    > ```
   - GitHub：已安装 **`gh` CLI 且已登录**（账号 `TangeTiv`，scope 含 `repo`）。**建 Release / 传资源优先用 `gh`，不要在会话里传 token。**
 - **App 的更新检查地址**（`app/src/main/java/com/xingheyuzhuan/shiguangschedule/tool/UpdateTool.kt` 里的 `UPDATE_REPO_URL`）：
   `https://gitee.com/TangeTiw/scnu-schedule/raw/main/update.json`
@@ -57,8 +66,16 @@
 2. **务必确认待发布的功能分支真的已合并进 main**：`git log --oneline main..<分支名>` 输出应为**空**。
    > 踩过的坑：曾把功能分支的 `update.json` 提交到了 main，却**漏合了功能代码**，导致 main 上「清单是 1.4.0、代码还是 1.3.1」——如果从这个 main 打包发版会**功能回退**。
    > 另外还要核对 `git show main:app/build.gradle.kts` 的 `versionCode/versionName` 与清单一致。
-3. 如果我没给，问我：新版本号 `X.Y.Z`（例如 `1.5.0`）、更新说明 `changelog`。
-4. 先 `read` `app/build.gradle.kts`（取当前 `versionCode`）与 `update.json`（取当前清单），不要凭记忆猜。
+   > 顺带确认功能分支**没有误改** `app/build.gradle.kts` 与 `update.json`：
+   > `git diff --name-only main..<分支名> | Select-String "build.gradle|update.json"` 应为空。
+3. **凭据预检（v1.5.0 新增，务必执行）**：先确认 `git push` 可用，**不要等打完包才发现推不上去**。
+   ```powershell
+   git ls-remote --heads gitee    # 读通即可；推不动会在下一步暴露
+   ```
+   更直接的判断：若 `git push gitee` 曾报 `Incorrect username or password (access token)`，
+   说明凭据管理器里的凭据过期，按「项目与环境 → 凭据」一节修复后再发版。
+4. 如果我没给，问我：新版本号 `X.Y.Z`（例如 `1.5.0`）、更新说明 `changelog`。
+5. 先 `read` `app/build.gradle.kts`（取当前 `versionCode`）与 `update.json`（取当前清单），不要凭记忆猜。
 
 ## 第 1 步：升版本号（提交）
 - `app/build.gradle.kts`：`versionCode` = 当前值 **+1**（必须严格递增，否则 App 不提示更新）；`versionName = "X.Y.Z"`
@@ -169,6 +186,13 @@ git push origin main     # 镜像到 GitHub
 6. **Gitee raw 有 60 秒 CDN 缓存**（`Cache-Control: public, max-age=60`），推完别急着判定失败。
 7. **GitHub 只是可选镜像**，App 只读 Gitee `main`；别只推 GitHub 不推 Gitee。
 8. **只传单包 = 只覆盖该架构**。项目按 ABI 分包，只上传 arm64 包的话，armeabi-v7a / x86 设备无法更新。
+   - ⚠️ **`-PackageMode universal`（脚本默认值）就是这种情况，名字有误导性**：
+     `build.gradle.kts` 里 `isUniversalApk = false`，项目**根本没有真正的通用包**；
+     脚本只是把 `app-prod-arm64-v8a-release.apk` **改名**成 `SCNU-Schedule.apk` 上传
+     （见 `release.ps1:141-145`）。所以它在清单里写作 `universal`，实际只覆盖 arm64。
+   - v1.4.1 与 v1.5.0 均使用 universal 模式（保持一致）。若需覆盖全架构，改用
+     `-PackageMode abi`，此时 `update.json` 的 `downloadLinks`/`checksums` 会变成
+     三个 ABI 键（结构不同，不能与旧清单混用）。
 9. **上传后回来自校验**：下载 Gitee 上的 APK 算 SHA-256，与清单一致才算完成。
 10. **本机是 Windows PowerShell 5.1**（`$PSVersionTable.PSEdition = Desktop`）：
     - `Invoke-RestMethod` **没有 `-Form`**，Gitee 的 multipart 上传必须走系统自带 `curl.exe`（见「API 自动化」）。
@@ -179,6 +203,15 @@ git push origin main     # 镜像到 GitHub
     - `git push <remote> v1.4.1` 可能推错对象。
     - → 推送一律用**显式 refs**：`git push <remote> refs/tags/vX.Y.Z` 和 `git push <remote> refs/heads/vX.Y.Z`。
     - （对清单无影响，因为清单固定读 `main`。）
+12. **脚本中途失败后绝对不要重跑**（v1.5.0 实测）：
+    `release.ps1` 是**单向流程**，第 1 步就先升版本号并提交。若它在第 2 步或之后失败，
+    **重跑会把 `versionCode` 再 +1**（如 11 → 12），造成版本号跳号、清单与产物对不上。
+    - 正确做法：改按上面「发版流程」的**手工步骤**，从失败的那一步接着做。
+    - v1.5.0 实战：第 2 步推 tag 因凭据过期失败 → 修复凭据后手工从第 2 步继续
+      （推 tag → 打包 → 算哈希 → 建 Release 传 APK → 写 update.json → 推 main → 验证），
+      没有重跑脚本。
+    - 顺带一提：脚本开头设了 `$ErrorActionPreference = "Stop"`，首个错误即中止、
+      不会带病往下推，这点是可靠的——所以**出错后要人工接管，而不是重跑**。
 
 # 工作方式
 
