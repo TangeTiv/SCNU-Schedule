@@ -638,7 +638,7 @@
     <string name="campus_course_selection_class_count">%1$d 个教学班</string>
     <string name="campus_course_selection_single_class">1 个教学班</string>
     <string name="campus_course_selection_sub_course_hint">需先选择子课程</string>
-    <string name="campus_course_selection_hidden_enrolled">已隐藏 %1$d 门你已选上的课程</string>
     <string name="campus_course_selection_time_pending">时间待定</string>
+    <string name="campus_course_selection_full_badge">已满</string>
 
 </resources>

@@ -17,8 +17,11 @@ import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectableCours
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectionOutcome
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectionRoundInfo
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SubCourse
+import com.xingheyuzhuan.shiguangschedule.data.network.selection.isCourseEnrolled
+import com.xingheyuzhuan.shiguangschedule.data.network.selection.isEnrolledIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -230,12 +233,10 @@ class CourseSelectionViewModel @Inject constructor(
                 }
             }
 
-            // 2. 排除已选：以权威已选清单的 kch_id / kch 为准
-            val enrolledIds = enrolled.mapTo(mutableSetOf()) { it.courseId }
-            val enrolledCodes = enrolled.mapTo(mutableSetOf()) { it.courseCode }
-            val visible = matched.filterNot { c ->
-                c.courseId in enrolledIds || c.courseCode in enrolledCodes
-            }
+            // 2. 排除已选：以权威已选清单为准。
+            //    用 isEnrolledIn 多口径判定（kch_id / kch 双兜底），
+            //    只比 kch_id 会因某侧字段为空而漏判 —— 那正是"已选课程仍显示"的根因。
+            val visible = matched.filterNot { it.isEnrolledIn(enrolled) }
             _hiddenEnrolledCount.value = matched.size - visible.size
 
             // 3. 按课程分组，组内按批次行号保持教务原始顺序
@@ -265,6 +266,16 @@ class CourseSelectionViewModel @Inject constructor(
      * 用户会误以为选课失败，实际第一次已经成功。
      */
     private val inFlightSubmissions = mutableSetOf<String>()
+
+    /**
+     * 加载当前类别下一批的协程句柄。
+     *
+     * **必须持有并取消**：`loadNextBatch()` 曾在协程内部读取 `_selectedCategory.value`，
+     * 若用户在请求在途时切换类别，回调会把**旧类别**的课程写进**新类别**的缓存桶，
+     * 表现为"主修课程只显示少量课程，切走再切回才正常"。
+     * 现在把类别在启动瞬间捕获、并取消上一个在途请求。
+     */
+    private var selectionLoadJob: Job? = null
 
     /** 正在退选的课程 ID 集合，同上目的 */
     private val inFlightDrops = mutableSetOf<String>()
@@ -433,18 +444,23 @@ class CourseSelectionViewModel @Inject constructor(
         keyword.value = ""
         val cached = _coursesByCategory.value[category.typeCode]
         if (autoLoad && (cached == null || cached.items.isEmpty()) && cached?.isEnd != true) {
-            loadNextBatch()
+            // 显式传类别：避免 loadNextBatch 内部再读可能已变化的 _selectedCategory
+            loadNextBatch(forCategory = category)
         }
     }
 
     /**
-     * 加载当前类别的下一批课程。
+     * 加载指定类别的下一批课程。
+     *
+     * @param forCategory 目标类别。**在切换类别的瞬间就固定下来**，
+     *                    不再读 [selectedCategory]，避免请求在途时切 Tab
+     *                    导致数据写错缓存桶（见 [selectionLoadJob]）
      *
      * 对应脚本 `list_courses()` 的循环体：窗口宽度 [ScnuCourseSelector.PAGE_SIZE]，
      * 本批未满即视为到底。到达末尾后再次调用将直接返回。
      */
-    fun loadNextBatch() {
-        val category = _selectedCategory.value ?: return
+    fun loadNextBatch(forCategory: CourseCategory? = _selectedCategory.value) {
+        val category = forCategory ?: return
         val cached = _coursesByCategory.value[category.typeCode] ?: LoadedCourses()
 
         // 已到底或正在加载则忽略（滚动触发的重复调用很常见）
@@ -453,12 +469,19 @@ class CourseSelectionViewModel @Inject constructor(
         val nextBatch = cached.batch + 1
         updateCategoryCache(category.typeCode) { it.copy(isLoadingMore = true) }
 
-        viewModelScope.launch {
+        // 取消上一个在途请求，保证同一时刻只有一个类别在拉取
+        selectionLoadJob?.cancel()
+        selectionLoadJob = viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
                     selector.listCoursesBatch(category = category, batch = nextBatch)
                 }
             }.onSuccess { batch ->
+                // 双保险：若期间用户已切走，丢弃这批结果而不污染其他类别
+                if (_selectedCategory.value?.typeCode != category.typeCode) {
+                    updateCategoryCache(category.typeCode) { it.copy(isLoadingMore = false) }
+                    return@onSuccess
+                }
                 updateCategoryCache(category.typeCode) { current ->
                     // 按 dedupeKey 去重：滑动窗口确实会重复推送同一教学班
                     val existingKeys = current.items.mapTo(mutableSetOf()) { it.dedupeKey }
@@ -474,6 +497,8 @@ class CourseSelectionViewModel @Inject constructor(
                 if (batch.batch == 1) refreshEnrolled(silent = true)
             }.onFailure { e ->
                 updateCategoryCache(category.typeCode) { it.copy(isLoadingMore = false) }
+                // 主动取消不算失败，不要弹错误
+                if (e is kotlinx.coroutines.CancellationException) return@onFailure
                 handleFailure(e)
             }
         }
@@ -498,7 +523,7 @@ class CourseSelectionViewModel @Inject constructor(
         updateCategoryCache(category.typeCode) { LoadedCourses() }
         // 已选清单是过滤依据，刷新课程时一并刷新
         refreshEnrolled(silent = true)
-        loadNextBatch()
+        loadNextBatch(forCategory = category)
     }
 
     fun onKeywordChange(value: String) {
@@ -579,7 +604,9 @@ class CourseSelectionViewModel @Inject constructor(
             subCourseCount = subCourseCount.ifBlank { fallback.subCourseCount },
             enrolledCount = enrolledCount,
             totalHours = fallback.totalHours,
-            courseNature = courseNature
+            courseNature = courseNature,
+            // 容量来自详情接口的 jxbrl —— 这是"已满禁选"能精确判定的唯一来源
+            capacity = capacity
         )
 
     /**
@@ -644,10 +671,7 @@ class CourseSelectionViewModel @Inject constructor(
                     withContext(Dispatchers.IO) { selector.myEnrolled() }
                 }
                 val enrolledList = preCheck.getOrNull()
-                val alreadyEnrolled = enrolledList?.any { enrolled ->
-                    val targetId = course.courseId.ifBlank { course.courseCode }
-                    enrolled.courseId == targetId || enrolled.courseCode == course.courseCode
-                } ?: false
+                val alreadyEnrolled = enrolledList?.let { course.isEnrolledIn(it) } ?: false
 
                 if (alreadyEnrolled) {
                     pushFeedback("该课程已在你的已选清单中，无需重复选课", isSuccess = true)
@@ -699,8 +723,8 @@ class CourseSelectionViewModel @Inject constructor(
                     }.getOrNull()
 
                     val targetId = course.courseId.ifBlank { course.courseCode }
-                    val nowEnrolled = confirmed?.any {
-                        it.courseId == targetId || it.courseCode == course.courseCode
+                    val nowEnrolled = confirmed?.let { list ->
+                        isCourseEnrolled(targetId, course.courseCode, list)
                     } ?: false
 
                     when {
@@ -878,20 +902,58 @@ class CourseSelectionViewModel @Inject constructor(
      * 若只清课程数据不清会话，用户**再次进入模块时会跳过登录**
      * —— 与"密码需要重新输入"的设计意图相反。
      *
-     * 由 UI 层的 `DisposableEffect` 在离开选课页面时调用。
+     * ## 为什么默认不清 [CourseSelectionUiState.isLoggedIn]
+     *
+     * 退出时会先调用本方法、再执行导航返回。若在这里把 `isLoggedIn` 置为 false，
+     * 返回动画的一帧里选课页会重新组合成"未登录"分支，用户会**瞬间看到密码输入界面**
+     * —— 这是必须避免的视觉瑕疵。
+     *
+     * 因此默认保留 `isLoggedIn`（数据已清空，下次进入会重新拉取），
+     * 同时 Session 已被 [ScnuCookieJar.clear] 失效，安全性不受影响。
+     * 调用方若要立刻复位 UI（例如测试或强制登出），传 `clearUserData = true`。
+     *
+     * 由 UI 层在**显式返回**时调用（顶部返回键 / 系统返回键）。
      */
-    fun clearSession() {
+    fun clearSession(clearUserData: Boolean = false) {
+        selectionLoadJob?.cancel()
+        selectionLoadJob = null
         _coursesByCategory.value = emptyMap()
         _enrolledCourses.value = emptyList()
+        _hiddenEnrolledCount.value = 0
         _categories.value = emptyList()
         _selectedCategory.value = null
         _roundInfo.value = SelectionRoundInfo()
         keyword.value = ""
         _feedback.value = null
         pendingSelection = null
-        _uiState.value = CourseSelectionUiState()
+        if (clearUserData) {
+            _uiState.value = CourseSelectionUiState()
+        } else {
+            // 保留 isLoggedIn，避免返回动画期间闪出登录面板；
+            // 但把 sessionExpired 置为 true —— 会话确实已被清掉，
+            // 这样 hasActiveSession() 会返回 false，下次进入必然要求重新登录，
+            // 而不会因为 isLoggedIn 仍为 true 而进到一片空白的数据页。
+            _uiState.value = _uiState.value.copy(
+                isLoggingIn = false,
+                errorMessage = null,
+                infoMessage = null,
+                sessionExpired = true
+            )
+        }
         // 清空共享会话，确保下次进入必须重新登录
         (cookieJar as? ScnuCookieJar)?.clear()
+    }
+
+    /**
+     * 当前是否持有一个**可用**的选课会话。
+     *
+     * 与 `uiState.isLoggedIn` 的区别：后者在退出模块后仍为 true（为了不在返回
+     * 动画中闪出登录面板），因此不能直接用来判断"能否直接进选课页"。
+     * 校园页的选课卡应使用本方法决定是弹登录框还是直接进入。
+     */
+    fun hasActiveSession(): Boolean {
+        val state = _uiState.value
+        return state.isLoggedIn && !state.sessionExpired
     }
 
     /**

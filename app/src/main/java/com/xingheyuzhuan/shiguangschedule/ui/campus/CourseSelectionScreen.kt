@@ -23,7 +23,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.School
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -133,7 +136,6 @@ fun CourseSelectionScreen(
     val displayedCourses by viewModel.displayedCourses.collectAsStateWithLifecycle()
     val enrolledCourses by viewModel.enrolledCourses.collectAsStateWithLifecycle()
     val isLoadingEnrolled by viewModel.isLoadingEnrolled.collectAsStateWithLifecycle()
-    val hiddenEnrolledCount by viewModel.hiddenEnrolledCount.collectAsStateWithLifecycle()
     val feedback by viewModel.feedback.collectAsStateWithLifecycle()
     val keyword by viewModel.keyword.collectAsStateWithLifecycle()
 
@@ -234,7 +236,6 @@ fun CourseSelectionScreen(
                 displayedCourses = displayedCourses,
                 enrolledCourses = enrolledCourses,
                 isLoadingEnrolled = isLoadingEnrolled,
-                hiddenEnrolledCount = hiddenEnrolledCount,
                 showEnrolledTab = showEnrolledTab,
                 onShowEnrolledTab = { showEnrolledTab = true },
                 onShowCategoryTab = { category ->
@@ -509,7 +510,6 @@ private fun CourseBrowserPane(
     displayedCourses: List<CourseGroup>,
     enrolledCourses: List<EnrolledCourse>,
     isLoadingEnrolled: Boolean,
-    hiddenEnrolledCount: Int,
     showEnrolledTab: Boolean,
     onShowEnrolledTab: () -> Unit,
     onShowCategoryTab: (CourseCategory) -> Unit,
@@ -539,6 +539,19 @@ private fun CourseBrowserPane(
             snapshotFlow { shouldLoadMore }
                 .distinctUntilChanged()
                 .collect { reached -> if (reached) onLoadMore() }
+        }
+
+        // ── 视口未填满则持续续拉 ──
+        //
+        // 滚动触发的续拉有个盲区：若首批返回的条数不足以填满屏幕，列表根本
+        // 无法滚动，`shouldLoadMore` 也就永远不会变为 true —— 表现为
+        // "登录后主修课程只显示少量课程"。这里在每次数据落地后主动检查一次，
+        // 直到填满视口或确认到底为止。
+        LaunchedEffect(courses.items.size, courses.isEnd, courses.isLoadingMore, showEnrolledTab) {
+            if (showEnrolledTab) return@LaunchedEffect
+            if (!courses.isEnd && !courses.isLoadingMore && shouldLoadMore) {
+                onLoadMore()
+            }
         }
 
         LazyColumn(
@@ -610,13 +623,6 @@ private fun CourseBrowserPane(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                }
-
-                // 已选课程被隐藏的说明，避免用户以为课程凭空消失
-                if (hiddenEnrolledCount > 0) {
-                    item {
-                        HiddenEnrolledNotice(count = hiddenEnrolledCount)
-                    }
                 }
 
                 if (displayedCourses.isEmpty() && !courses.isLoadingMore) {
@@ -766,32 +772,6 @@ private fun RoundInfoBar(roundInfo: SelectionRoundInfo) {
     }
 }
 
-/** 已选课程被隐去时的说明条 */
-@Composable
-private fun HiddenEnrolledNotice(count: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Info,
-            contentDescription = null,
-            modifier = Modifier.size(15.dp),
-            tint = MaterialTheme.colorScheme.onSecondaryContainer
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = stringResource(R.string.campus_course_selection_hidden_enrolled, count),
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSecondaryContainer
-        )
-    }
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // 类别 Tab
 // ═══════════════════════════════════════════════════════════════════════════
@@ -872,23 +852,40 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
  *
  * ## UI 对齐 [ExamScreen] 的考试卡
  *
- * 结构完全沿用考试卡：`Card(16dp 圆角, containerColor=surface)` →
- * `Column(16dp/14dp padding)` → 头部行（标题 + 右侧 Badge）→ 带图标的信息行。
- * 差别只在中性色上用主题色而非考试卡的硬编码色，以兼容深色模式。
+ * 结构沿用考试卡：`Card(16dp 圆角)` → `Column(16dp/14dp)` → 头部行（标题 +
+ * 右侧 Badge）→ 带图标的信息行。差别在于**用色彩承担信息区分**：
  *
- * ## 分组展示
+ * | 信息 | 配色 |
+ * |---|---|
+ * | 教学班数量 Badge | 主色 / 已满时错误色 / 含子课程时第三色 |
+ * | 课程号 + 学分 | 主色（可扫读的标识信息） |
+ * | 已选人数 | 已满错误色、余量紧张第三色、充足时中性灰 |
+ * | 含子课程提示 | 第三色 |
  *
- * 一门课一张卡。卡片右侧 Badge 显示可选教学班数量，因此同一门课不会
- * 因为"有 3 个教学班"而重复出现 3 次。
+ * ## 深色模式
+ *
+ * 卡片底色取 `surfaceContainerHigh` 而非 `surface`：深色主题下 `surface`
+ * 接近纯黑，卡片与页面背景无法区分。`surfaceContainerHigh` 是浅一档的容器色，
+ * 在浅色下仍接近白色，两端都有清晰层次。
+ *
+ * ## 已满课程
+ *
+ * 列表接口不返回容量，只能按**已选人数**与阈值（[FULL_THRESHOLD]）标注提示；
+ * 真正的容量判定在教学班面板里用 `jxbrl` 完成并禁用按钮。
  */
 @Composable
 private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
     val course = group.course
+    // 列表接口无容量字段，isFull 会自动退化为按已选人数阈值的宽松判定
+    val likelyFull = course.isFull
+
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -896,7 +893,7 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            // 头部行：课程名 + 教学班数量 Badge（对应考试卡的倒计时 Badge 位置）
+            // 头部行：课程名 + 状态 Badge
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = course.courseName.ifBlank { "—" },
@@ -908,25 +905,35 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                InfoBadge(
-                    text = if (group.classCount > 1) {
-                        stringResource(R.string.campus_course_selection_class_count, group.classCount)
-                    } else {
-                        stringResource(R.string.campus_course_selection_single_class)
-                    },
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+                when {
+                    likelyFull -> InfoBadge(
+                        text = stringResource(R.string.campus_course_selection_full_badge),
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                    course.hasSubCourses -> InfoBadge(
+                        text = stringResource(R.string.campus_course_selection_sub_course_badge),
+                        contentColor = MaterialTheme.colorScheme.tertiary
+                    )
+                    else -> InfoBadge(
+                        text = if (group.classCount > 1) {
+                            stringResource(R.string.campus_course_selection_class_count, group.classCount)
+                        } else {
+                            stringResource(R.string.campus_course_selection_single_class)
+                        },
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 信息行：课程号 + 学分（对应考试卡的时间行）
+            // 信息行：课程号 + 学分（主色，作为课程标识）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Filled.Schedule,
+                    imageVector = Icons.Filled.Bookmark,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
@@ -937,7 +944,8 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
                         }
                     ).filterNotNull().joinToString(" · ").ifBlank { "—" },
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -945,20 +953,16 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 信息行：已选人数 + 子课程提示（对应考试卡的地点行）
+            // 信息行：已选人数（按余量着色）+ 子课程提示
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (course.hasSubCourses) {
-                        Icons.Filled.WarningAmber
-                    } else {
-                        Icons.Filled.Info
-                    },
+                    imageVector = Icons.Filled.Groups,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = if (course.hasSubCourses) {
-                        MaterialTheme.colorScheme.tertiary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = when {
+                        likelyFull -> MaterialTheme.colorScheme.error
+                        course.hasSubCourses -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
                 Spacer(modifier = Modifier.width(6.dp))
@@ -975,14 +979,23 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
                         if (course.hasSubCourses) {
                             if (isNotEmpty()) append(" · ")
                             append(stringResource(R.string.campus_course_selection_sub_course_hint))
+                        } else if (group.classCount > 1) {
+                            if (isNotEmpty()) append(" · ")
+                            append(
+                                stringResource(
+                                    R.string.campus_course_selection_class_count,
+                                    group.classCount
+                                )
+                            )
                         }
                         if (isEmpty()) append("—")
                     },
                     fontSize = 14.sp,
-                    color = if (course.hasSubCourses) {
-                        MaterialTheme.colorScheme.tertiary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = if (likelyFull) FontWeight.Bold else FontWeight.Normal,
+                    color = when {
+                        likelyFull -> MaterialTheme.colorScheme.error
+                        course.hasSubCourses -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -1005,7 +1018,11 @@ private fun EnrolledCourseRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        // 与 CourseRow 一致用 surfaceContainerHigh：深色下 surface 近纯黑，
+        // 卡片彼此无法区分
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -1024,10 +1041,18 @@ private fun EnrolledCourseRow(
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                TextButton(onClick = onDropClick) {
+                // 退选：红底白字按钮（而非仅红色文字），更醒目且明确是可执行操作
+                Button(
+                    onClick = onDropClick,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
                     Text(
                         text = stringResource(R.string.campus_course_selection_drop),
-                        color = MaterialTheme.colorScheme.error,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -1042,7 +1067,7 @@ private fun EnrolledCourseRow(
                     imageVector = Icons.Filled.School,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.primary
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
@@ -1053,7 +1078,8 @@ private fun EnrolledCourseRow(
                         }
                     ).filterNotNull().joinToString(" · ").ifBlank { "—" },
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1067,7 +1093,7 @@ private fun EnrolledCourseRow(
                     imageVector = Icons.Filled.Schedule,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.secondary
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
@@ -1076,7 +1102,7 @@ private fun EnrolledCourseRow(
                         .joinToString(" · ")
                         .ifBlank { stringResource(R.string.campus_course_selection_time_pending) },
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.secondary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )

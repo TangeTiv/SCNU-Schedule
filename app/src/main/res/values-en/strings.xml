@@ -636,7 +636,7 @@
     <string name="campus_course_selection_class_count">%1$d classes</string>
     <string name="campus_course_selection_single_class">1 class</string>
     <string name="campus_course_selection_sub_course_hint">Pick sub-courses first</string>
-    <string name="campus_course_selection_hidden_enrolled">%1$d already-selected courses hidden</string>
     <string name="campus_course_selection_time_pending">Time TBD</string>
+    <string name="campus_course_selection_full_badge">Full</string>
 
 </resources>

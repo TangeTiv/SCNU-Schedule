@@ -90,11 +90,11 @@ fun GradeScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFFFCF9F8)
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
-        containerColor = Color(0xFFFCF9F8)
+        containerColor = MaterialTheme.colorScheme.surface
     ) { innerPadding ->
         if (allGrades.isEmpty()) {
             EmptyGradeState(modifier = Modifier.padding(innerPadding))
@@ -148,20 +148,20 @@ private fun EmptyGradeState(modifier: Modifier = Modifier) {
             imageVector = Icons.Filled.Grading,
             contentDescription = null,
             modifier = Modifier.size(72.dp),
-            tint = Color(0xFFBDBDBD)
+            tint = MaterialTheme.colorScheme.outline
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = stringResource(R.string.grade_no_data),
             fontSize = 18.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0xFF757575)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.grade_no_data_hint),
             fontSize = 14.sp,
-            color = Color(0xFF9E9E9E)
+            color = MaterialTheme.colorScheme.outline
         )
     }
 }
@@ -308,7 +308,9 @@ private fun GradeCard(grade: GradeEntity) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -323,7 +325,7 @@ private fun GradeCard(grade: GradeEntity) {
                     text = grade.kcmc.ifBlank { "—" },
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333),
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -334,12 +336,12 @@ private fun GradeCard(grade: GradeEntity) {
                     Text(
                         text = "${stringResource(R.string.grade_xf_label)}: ${grade.xf.ifBlank { "—" }}",
                         fontSize = 13.sp,
-                        color = Color(0xFF757575)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "${stringResource(R.string.grade_jd_label)}: ${grade.jd.ifBlank { "—" }}",
                         fontSize = 13.sp,
-                        color = Color(0xFF757575)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -347,10 +349,11 @@ private fun GradeCard(grade: GradeEntity) {
             Spacer(modifier = Modifier.width(12.dp))
 
             // 右侧：成绩醒目展示
+            // 用 tertiary 容器色而非硬编码绿：深色模式下浅绿底不刺眼，浅色下仍是绿系
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF10B981).copy(alpha = 0.1f))
+                    .background(MaterialTheme.colorScheme.tertiaryContainer)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -358,7 +361,7 @@ private fun GradeCard(grade: GradeEntity) {
                     text = grade.cj.ifBlank { "—" },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF10B981),
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
                     textAlign = TextAlign.Center
                 )
             }

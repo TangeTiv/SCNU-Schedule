@@ -215,6 +215,22 @@ Hilt **隐式绑定**注入 → 默认 unscoped → 每次注入都是新实例�
 
 ## 7. 遗留事项与技术债
 
+### 7.0 第二轮反馈后的关键修正（重要，改这些地方前先读）
+
+| 主题 | 结论 |
+|---|---|
+| **ViewModel 作用域** | `NavDisplay` 用 `rememberViewModelStoreNavEntryDecorator()`，ViewModel 作用域是**单个 NavEntry**。选课 ViewModel 必须创建在 `AppNavigation`（NavDisplay 之上）并透传，否则从校园页导航过去时它会被销毁、登录态丢失 |
+| **退出清会话的时机** | 挂在**显式返回**（顶部返回键 / `BackHandler`）上，**不能**用 `onDispose` —— 去「同步课表」再回来时 ViewModel 仍存活，`onDispose` 会强迫重新登录 |
+| **退出不闪登录面板** | `clearSession()` 默认**保留** `isLoggedIn`（否则返回动画的一帧会重组出密码输入框）。代价是 `isLoggedIn` 不再等价于"会话可用"，故新增 `hasActiveSession()`，校园页选课卡必须用它判断 |
+| **分页竞态** | `loadNextBatch(forCategory)` 的类别在**调用瞬间捕获**并取消上一个在途 Job。早期实现读 `_selectedCategory.value`，切 Tab 时会把旧类别数据写进新类别缓存桶 |
+| **视口未填满** | 滚动触发续拉有盲区：不满屏时列表无法滚动，`shouldLoadMore` 永不触发。`CourseBrowserPane` 额外用一个 `LaunchedEffect` 在数据落地后主动补拉直到填满 |
+| **已选判定** | 必须用 `isEnrolledIn()` / `isCourseEnrolled()` **多口径**（`kch_id` + `kch`，空串不参与）。只比 `kch_id` 会因某侧字段为空而漏判，这是"已选课程仍出现在可选列表"的根因 |
+| **已满判定** | 列表接口**不返回** `jxbrl`（容量），只有详情接口返回。故 `SelectableCourse.isFull` 是两级判定：有容量则精确比较，无容量则按 `enrolledCount >= FULL_FALLBACK_THRESHOLD`(60) 兜底提示；**真正禁选**在教学班面板用精确口径完成 |
+| **深色模式** | 新页面卡片一律用 `surfaceContainerHigh`，**不要用 `surface`** —— 深色主题下 `surface` 接近纯黑，卡片彼此无法区分。`ExamScreen`/`GradeScreen` 已一并从硬编码浅色改为 `MaterialTheme` 语义色 |
+| **KDoc 里的 `/*`** | Kotlin 块注释**支持嵌套**，注释里写 `` `/xsxk/*` `` 之类的通配路径会让整文件被吞掉并报 "Unclosed comment" |
+
+### 7.1 其他遗留
+
 1. **登录实现重复**：`ScnuSsoLogin`（双路径）与 `ScnuScraper.login()`（仅 fastlogin）
    暂时并存。**v1.6.0 目标**：评估统一到 `ScnuSsoLogin`。
    在迁移前**不要删除任何一侧** —— `ScnuScraper` 仍被 `CampusSyncViewModel` 使用，

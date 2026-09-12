@@ -149,7 +149,14 @@ data class SelectableCourse(
     @SerialName("yxzrs") val enrolledCount: String = "",
     /** 任务总学时 */
     @SerialName("rwzxs") val totalHours: String = "",
-    @SerialName("kzmc") val courseNature: String = ""
+    @SerialName("kzmc") val courseNature: String = "",
+    /**
+     * 教学班容量（`jxbrl`）。
+     *
+     * 课程列表接口**不返回**该字段，只有教学班详情接口才有；
+     * 因此列表层只能靠 [enrolledCount] 兜底判断，见 [isFull]。
+     */
+    @SerialName("jxbrl") val capacity: String = ""
 ) {
     /** 去重键：优先 `jxb_id`，缺失时退化为 `kch_id`（对应 Python `key = jxb_id or kch_id`） */
     val dedupeKey: String get() = classId.ifBlank { courseId }
@@ -159,6 +166,38 @@ data class SelectableCourse(
 
     /** 是否为重修/辅修课程 */
     val isRetakeOrMinor: Boolean get() = isRetake == "1" || isMinor == "1"
+
+    /**
+     * 是否已满。
+     *
+     * ## 两级判定
+     *
+     * 1. **精确判定**：若 [capacity] 有值（来自教学班详情接口的 `jxbrl`），
+     *    与 [enrolledCount] 比较，语义与脚本 `jxbrs >= jxbrl > 0` 一致
+     * 2. **宽松兜底**：容量未知时（课程列表接口不返回 `jxbrl`），
+     *    用已选人数是否达到 [FULL_FALLBACK_THRESHOLD] 作为提示
+     *
+     * 之所以要兜底：列表接口拿不到容量，而用户需要一眼看出"这门课大概满了"。
+     * 真正的禁选判定在教学班面板里用精确口径完成。
+     */
+    val isFull: Boolean
+        get() {
+            val selected = enrolledCount.toDoubleOrNull()
+            val cap = capacity.toDoubleOrNull()
+            return when {
+                selected == null -> false
+                cap != null && cap > 0 -> selected >= cap
+                else -> selected >= FULL_FALLBACK_THRESHOLD
+            }
+        }
+
+    /** 已选/容量展示串，如 "45/60"；容量未知时退化为 "45 人" */
+    val occupancyText: String
+        get() = when {
+            enrolledCount.isBlank() && capacity.isBlank() -> ""
+            capacity.isBlank() -> "$enrolledCount 人"
+            else -> "$enrolledCount/$capacity"
+        }
 }
 
 /**
@@ -410,6 +449,22 @@ sealed interface SelectionOutcome {
     data class Failure(val flag: String, val rawMessage: String) : SelectionOutcome
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 选课模块常量
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 容量未知时的"疑似已满"人数阈值。
+ *
+ * 课程列表接口不返回教学班容量 `jxbrl`，只有 `yxzrs`（已选人数），
+ * 因此列表层无法精确判断已满。取 60 作为常见教学班容量上限的保守估计：
+ * 已选人数达到该值即提示"已满"，避免用户点了才发现选不上。
+ *
+ * **注意**：这只是展示层提示，真正的禁选在教学班面板里用
+ * `jxbrl` 精确比较后禁用按钮（见 [CourseClass.isFull]）。
+ */
+const val FULL_FALLBACK_THRESHOLD = 60.0
+
 /**
  * 解析教务教师原始串为显示名。
  *
@@ -431,3 +486,56 @@ fun parseTeacherNames(teacherRaw: String): String {
     }
     return names.filter { it.isNotBlank() }.joinToString("、")
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 课程同一性判定
+//
+// 「可选课程」与「已选课程」来自两个不同接口，同一门课在两个响应里的字段
+// 填充程度并不一致（`kch_id` 可能一边为空、`kch` 格式可能有细微差异），
+// 因此判断"这门课是否已选"必须**多口径兜底**，不能只比一个字段。
+//
+// 这也是"已选课程仍出现在可选列表"的根本原因：只比 `kch_id` 时，
+// 一旦某侧该字段为空就永远匹配不上。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 归一化课程标识：去空白、全角转半角括号、统一小写 */
+private fun normalizeCourseKey(raw: String): String =
+    raw.trim()
+        .replace('（', '(')
+        .replace('）', ')')
+        .lowercase()
+
+/**
+ * 判断两个课程标识是否指向同一门课。
+ *
+ * 空串**不参与比较**（避免"两边都为空"被误判为同一门课）。
+ */
+private fun sameCourseKey(a: String, b: String): Boolean {
+    val na = normalizeCourseKey(a)
+    val nb = normalizeCourseKey(b)
+    return na.isNotEmpty() && na == nb
+}
+
+/**
+ * 判断某门可选课程是否已在已选清单中。
+ *
+ * 依次尝试 `kch_id` 与 `kch` 两个口径，任一命中即视为已选。
+ *
+ * @param selectableCourseId 可选课程的 `kch_id`
+ * @param selectableCourseCode 可选课程的 `kch`
+ * @param enrolled 已选清单
+ */
+fun isCourseEnrolled(
+    selectableCourseId: String,
+    selectableCourseCode: String,
+    enrolled: List<EnrolledCourse>
+): Boolean = enrolled.any { e ->
+    sameCourseKey(e.courseId, selectableCourseId) ||
+            sameCourseKey(e.courseCode, selectableCourseCode)
+}
+
+/**
+ * 判断某门可选课程自身是否已在已选清单中（便捷重载）。
+ */
+fun SelectableCourse.isEnrolledIn(enrolled: List<EnrolledCourse>): Boolean =
+    isCourseEnrolled(courseId, courseCode, enrolled)

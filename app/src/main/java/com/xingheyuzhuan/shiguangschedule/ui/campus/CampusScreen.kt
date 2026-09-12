@@ -99,10 +99,6 @@ fun CampusScreen(
     // 先弹框输入凭据，登录成功后才导航进选课界面，而不是直接开新页面。
     var showSelectionLogin by remember { mutableStateOf(false) }
 
-    // 已登录（同一会话内再次进入）则跳过对话框直接进选课页
-    val selectionState by
-        courseSelectionViewModel.uiState.collectAsStateWithLifecycle()
-
     Scaffold(
         containerColor = if (isDark) MaterialTheme.colorScheme.surface else SurfaceBackgroundColor,
         topBar = {
@@ -166,8 +162,11 @@ fun CampusScreen(
                     TertiaryServiceGrid(
                         isDark = isDark,
                         onCourseSelectionClick = {
-                            // 同一会话内已登录则不再重复索要密码，直接进入
-                            if (selectionState.isLoggedIn) {
+                            // 优先读 ViewModel 的显式会话判定，
+                            // 而不是 uiState.isLoggedIn —— 退出模块后后者仍为 true
+                            // （为了不在返回动画里闪出登录面板），
+                            // 此时数据已清空，直接进入会看到一片空白页。
+                            if (courseSelectionViewModel.hasActiveSession()) {
                                 onNavigate(Destination.CourseSelection)
                             } else {
                                 showSelectionLogin = true

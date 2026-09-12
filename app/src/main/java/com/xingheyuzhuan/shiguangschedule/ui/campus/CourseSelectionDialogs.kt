@@ -1,6 +1,8 @@
 package com.xingheyuzhuan.shiguangschedule.ui.campus
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -287,7 +290,15 @@ private fun LoadingHint() {
 /**
  * 单个教学班行。
  *
- * 含子课程（`jxbzls > 1`）时按钮文案变为「选子课程」，
+ * ## 已满处理（需求 8）
+ *
+ * 用详情接口的 `jxbrl`（容量）与 `yxzrs`（已选人数）精确比较
+ * （[SelectableCourse.isFull] 在 ViewModel 映射时已算好容量信息）：
+ * - 卡片整体 `alpha(0.6f)` 变暗，视觉上立刻可辨
+ * - 右上角显示红色「已满」Badge
+ * - 按钮文案改为「已满」并**禁用**，从根本上阻止提交
+ *
+ * 含子课程（`jxbzls > 1`）时按钮文案为「选子课程」，
  * 明确告知用户还需一步，而不是让他点了"选课"却发现没提交。
  */
 @Composable
@@ -296,12 +307,14 @@ private fun ClassRow(
     isSubmitting: Boolean,
     onSelect: () -> Unit
 ) {
+    val isFull = clazz.isFull
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        )
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -310,21 +323,37 @@ private fun ClassRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = clazz.className.ifBlank { clazz.courseName.ifBlank { "—" } },
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (clazz.enrolledCount.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = clazz.className.ifBlank { clazz.courseName.ifBlank { "—" } },
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (isFull) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        InfoBadge(
+                            text = stringResource(R.string.campus_course_selection_full_badge),
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                // 人数：已满用错误色，未满用主色，便于一眼分辨
+                if (clazz.occupancyText.isNotBlank()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     InfoLine(
-                        stringResource(
-                            R.string.campus_course_selection_enrolled_count,
-                            clazz.enrolledCount
-                        )
+                        text = stringResource(
+                            R.string.campus_course_selection_capacity,
+                            clazz.occupancyText
+                        ),
+                        color = if (isFull) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        }
                     )
                 }
             }
@@ -333,15 +362,29 @@ private fun ClassRow(
 
             Button(
                 onClick = onSelect,
-                enabled = !isSubmitting,
+                // 已满禁止选课（需求 8）；提交中亦禁用，避免连点重复提交
+                enabled = !isSubmitting && !isFull,
                 shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (clazz.hasSubCourses) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    contentColor = if (clazz.hasSubCourses) {
+                        MaterialTheme.colorScheme.onTertiary
+                    } else {
+                        MaterialTheme.colorScheme.onPrimary
+                    }
+                ),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = if (clazz.hasSubCourses) {
-                        stringResource(R.string.campus_course_selection_pick_sub_course_action)
-                    } else {
-                        stringResource(R.string.campus_course_selection_select_action)
+                    text = when {
+                        isFull -> stringResource(R.string.campus_course_selection_class_full)
+                        clazz.hasSubCourses ->
+                            stringResource(R.string.campus_course_selection_pick_sub_course_action)
+                        else -> stringResource(R.string.campus_course_selection_select_action)
                     },
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -351,12 +394,34 @@ private fun ClassRow(
     }
 }
 
+/** 已满 Badge 复用课程卡的小角标视觉 */
 @Composable
-private fun InfoLine(text: String) {
+private fun InfoBadge(
+    text: String,
+    contentColor: androidx.compose.ui.graphics.Color
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(contentColor.copy(alpha = 0.12f))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = contentColor,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun InfoLine(text: String, color: androidx.compose.ui.graphics.Color) {
     Text(
         text = text,
         fontSize = 12.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = color,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
     )
