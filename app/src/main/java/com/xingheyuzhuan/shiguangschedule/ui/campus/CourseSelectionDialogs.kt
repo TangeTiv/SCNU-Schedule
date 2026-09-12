@@ -87,10 +87,21 @@ internal fun ClassSelectionSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // 详情加载状态。列表接口的 jxb_id 不等于提交所需的 do_jxb_id，
-    // 因此需要先拉详情；已有详情时（按 kch_id 分组的场景）直接复用。
-    var classes by remember(group.key) { mutableStateOf(group.classes) }
-    var isLoadingClasses by remember(group.key) { mutableStateOf(false) }
+    // ── 教学班详情（必须每次都请求）──
+    //
+    // **这是选课能否成功的关键。** 列表接口给的是 `jxb_id`，而选课提交需要的是
+    // 详情接口的 `do_jxb_id`，两者**不是同一个值**（脚本在字段旁标注"选课必需"）；
+    // 容量 `jxbrl` 也只有详情接口才有。
+    //
+    // 早期实现写过一个"优化"：`if (classes.any { it.classId.isNotBlank() }) return`，
+    // 想复用列表数据。但列表项的 `jxb_id` 本来就非空，于是详情请求被**永久跳过**，
+    // 导致两个症状同时出现：
+    //   1. 提交了列表的 `jxb_id` → 教务参数校验失败 → flag=0
+    //   2. 拿不到 `jxbrl` → 不显示容量、无法判定已满
+    // 现在改为无条件请求，绝不复用列表数据当作详情。
+    var detailGroups by remember(group.key) { mutableStateOf<List<CourseGroup>>(emptyList()) }
+    var isLoadingClasses by remember(group.key) { mutableStateOf(true) }
+    var hasDetailError by remember(group.key) { mutableStateOf(false) }
 
     // 当前正在查看子课程的教学班；非 null 时面板切换到子课程勾选视图
     var subCourseTarget by remember { mutableStateOf<SelectableCourse?>(null) }
@@ -99,21 +110,28 @@ internal fun ClassSelectionSheet(
     // 勾选的子课程 do_jxb_id
     val pickedSubIds = remember { mutableStateMapOf<String, Boolean>() }
 
-    // 详情里 classId 已由 ViewModel 映射为 do_jxb_id（见 CourseClass.toSelectableCourse），
-    // 故判空即可知是否已补齐。
     LaunchedEffect(group.key) {
-        if (classes.any { it.classId.isNotBlank() }) return@LaunchedEffect
         isLoadingClasses = true
+        hasDetailError = false
         viewModel.loadClasses(
             course = group.course,
             onLoaded = { groups ->
                 // 详情接口同样按 kch_id 分组；取与当前课程对应的那组
-                val matched = groups.firstOrNull { it.key == group.key } ?: groups.firstOrNull()
-                if (matched != null) classes = matched.classes
+                detailGroups = groups
                 isLoadingClasses = false
             },
-            onError = { isLoadingClasses = false }
+            onError = {
+                isLoadingClasses = false
+                hasDetailError = true
+            }
         )
+    }
+
+    // 只用详情数据；详情未到达时保持为空 → UI 显示加载中，不会误用列表数据提交
+    val classes: List<SelectableCourse> = remember(detailGroups, group.key) {
+        (detailGroups.firstOrNull { it.key == group.key } ?: detailGroups.firstOrNull())
+            ?.classes
+            .orEmpty()
     }
 
     // 加载子课程
@@ -253,27 +271,43 @@ internal fun ClassSelectionSheet(
                     )
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 460.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(classes, key = { it.classId.ifBlank { it.courseId + it.className } }) { clazz ->
-                            ClassRow(
-                                clazz = clazz,
-                                isSubmitting = viewModel.isSubmitting(clazz.classId),
-                                onSelect = {
-                                    if (clazz.hasSubCourses) {
-                                        subCourseTarget = clazz
-                                    } else {
-                                        viewModel.submitSelection(
-                                            course = clazz,
-                                            doJxbId = clazz.classId,
-                                            pickedSubCourses = emptyList()
-                                        )
-                                        onDismiss()
+                    if (classes.isEmpty()) {
+                        // 详情返回空数组是**正常**的：教务对「已选/未开放」的课程
+                        // 就是这个行为（HTTP 200，不是错误），故给友好说明而非报错
+                        Text(
+                            text = if (hasDetailError) {
+                                stringResource(R.string.campus_course_selection_classes_failed)
+                            } else {
+                                stringResource(R.string.campus_course_selection_no_classes)
+                            },
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 460.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(classes, key = { it.classId.ifBlank { it.courseId + it.className } }) { clazz ->
+                                ClassRow(
+                                    clazz = clazz,
+                                    isSubmitting = viewModel.isSubmitting(clazz.classId),
+                                    onSelect = {
+                                        if (clazz.hasSubCourses) {
+                                            subCourseTarget = clazz
+                                        } else {
+                                            // clazz.classId 已是详情接口的 do_jxb_id
+                                            // （由 CourseClass.toSelectableCourse 映射）
+                                            viewModel.submitSelection(
+                                                course = clazz,
+                                                doJxbId = clazz.classId,
+                                                pickedSubCourses = emptyList()
+                                            )
+                                            onDismiss()
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }

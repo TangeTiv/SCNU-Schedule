@@ -641,5 +641,7 @@
     <!-- 教學班按鈕文案：與「已滿」Badge 區分措辭，避免同屏出現兩個「已滿」 -->
     <string name="campus_course_selection_class_full_action">名額已滿</string>
     <string name="campus_course_selection_tap_to_view_classes">點擊查看教學班與餘量</string>
+    <string name="campus_course_selection_no_classes">該課程目前沒有可選教學班（可能已選或未開放）</string>
+    <string name="campus_course_selection_classes_failed">教學班詳情取得失敗，請返回重試</string>
 
 </resources>
