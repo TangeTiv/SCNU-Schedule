@@ -4,6 +4,8 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -427,13 +429,36 @@ class ScnuCourseSelector @Inject constructor(
         params["xkkz_id"] = tab.controlId
         params["njdm_id"] = tab.gradeId
         params["zyh_id"] = tab.majorId
-        if (params["xklc"].isNullOrEmpty()) params["xklc"] = roundNumber()
+        if (params["xklc"].isNullOrEmpty()) params["xklc"] = roundNumber().ifBlank { "1" }
 
         val (status, body) = postForm("$JWXT$P_CLASSES?gnmkdm=$GNMKDM", params, INDEX_URL)
         val trimmed = body.trim()
 
         if (trimmed == "\"0\"" || trimmed == "0") {
+            Log.w(TAG, "classesOf 被拒绝(返回0) kch_id=$courseId kklxdm=${tab.typeCode}")
             throw CourseSelectionException("教学班详情被拒绝（非法访问）")
+        }
+
+        // ── 诊断：打印详情接口真实返回的字段名与容量相关值 ──
+        // 容量字段名在不同教务版本间存在差异（jxbrl / jxbrs / yxzrs …），
+        // 只有看到真实键名才能确定映射是否正确，避免靠猜。
+        runCatching {
+            val first = json.parseToJsonElement(trimmed)
+                .let { it as? JsonArray }
+                ?.firstOrNull()
+                ?.let { it as? JsonObject }
+            if (first != null) {
+                val keys = first.keys.joinToString(",")
+                fun v(k: String) = first[k]?.toString()?.trim('"').orEmpty()
+                Log.d(
+                    TAG,
+                    "classesOf kch_id=$courseId 首条字段名=[$keys] " +
+                            "jxbrl=${v("jxbrl")} jxbrs=${v("jxbrs")} yxzrs=${v("yxzrs")} " +
+                            "jxbmc=${v("jxbmc")} do_jxb_id=${v("do_jxb_id")} jxb_id=${v("jxb_id")}"
+                )
+            } else {
+                Log.w(TAG, "classesOf 响应非 JSON 数组: HTTP $status body=${body.take(300)}")
+            }
         }
 
         runCatching { json.decodeFromString<List<CourseClass>>(trimmed) }.getOrElse {
@@ -580,6 +605,14 @@ class ScnuCourseSelector @Inject constructor(
             "jcxx_id" to ""
         )
 
+        // 诊断日志：选课是与教务的强契约交互，参数细微不一致就会失败。
+        // 记录**全部提交参数**与教务原始应答，便于定位 "非法访问(flag=0)" 的确切原因。
+        Log.d(
+            TAG,
+            "select 提交参数=${params.entries.joinToString("&") { "${it.key}=${it.value}" }}"
+        )
+        Log.d(TAG, "select 轮次抽取: pageRoundName='${c.roundName}' → xklc='${params["xklc"]}'")
+
         val (status, body) = postForm("$JWXT$P_SELECT?gnmkdm=$GNMKDM", params, INDEX_URL)
         val obj = runCatching { json.decodeFromString<SelectResponse>(body.trim()) }.getOrNull()
             ?: run {
@@ -591,15 +624,7 @@ class ScnuCourseSelector @Inject constructor(
 
         val flag = obj.flag
         val msg = obj.msg
-
-        // 诊断日志：选课是与教务的强契约交互，参数细微不一致就会失败。
-        // 记录提交参数与教务原始应答，便于定位 "非法访问(flag=0)" 的确切原因。
-        Log.d(
-            TAG,
-            "select kch_id=$courseId jxb_ids=$jxbIds kklxdm=${tab.typeCode} " +
-                    "xkkz_id=${tab.controlId} xklc=${params["xklc"]} qz=${params["qz"]} " +
-                    "sxbj=${params["sxbj"]} → HTTP $status flag=$flag msg=$msg"
-        )
+        Log.d(TAG, "select 教务应答: HTTP $status flag=$flag msg=$msg raw=${body.take(300)}")
 
         when {
             // flag=1 / 3 视为成功（脚本 `ok = flag in ('1', '3')`）
