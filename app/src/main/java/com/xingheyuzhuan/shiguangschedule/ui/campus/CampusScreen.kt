@@ -40,9 +40,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,10 +86,22 @@ private val WEEKDAY_LOCALE = Locale.CHINESE
 fun CampusScreen(
     onNavigate: (Destination) -> Unit,
     onBack: () -> Unit,
-    campusViewModel: CampusViewModel = hiltViewModel()
+    campusViewModel: CampusViewModel = hiltViewModel(),
+    // 选课模块的 ViewModel 由 MainActivity 在 NavDisplay 之上创建后传入。
+    // 不在此处 hiltViewModel()：NavDisplay 的 ViewModel 作用域是单个 NavEntry，
+    // 在此创建会在导航到选课页时被销毁，导致登录态丢失。
+    courseSelectionViewModel: CourseSelectionViewModel = hiltViewModel()
 ) {
     val campusState by campusViewModel.campusState.collectAsStateWithLifecycle()
     val isDark = LocalIsDarkTheme.current
+
+    // 选课登录对话框的显隐。点击【选课】卡片时置为 true —— 按需求
+    // 先弹框输入凭据，登录成功后才导航进选课界面，而不是直接开新页面。
+    var showSelectionLogin by remember { mutableStateOf(false) }
+
+    // 已登录（同一会话内再次进入）则跳过对话框直接进选课页
+    val selectionState by
+        courseSelectionViewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         containerColor = if (isDark) MaterialTheme.colorScheme.surface else SurfaceBackgroundColor,
@@ -142,10 +156,40 @@ fun CampusScreen(
                 PrimaryServiceGrid(onNavigate = onNavigate, isDark = isDark)
             }
 
-            item { SecondaryServiceGrid(isDark = isDark) }
-
-            item { TertiaryServiceGrid(onNavigate = onNavigate, isDark = isDark) }
+            // 次功能网格与选课卡放在同一个 item 内：
+            // 这样「选课」与「图书馆资源」共享同一套列宽（各 1/3 栅格），
+            // 且两行之间只有 12dp 间距，视觉上选课卡正好落在图书馆卡正下方。
+            item {
+                Column {
+                    SecondaryServiceGrid(isDark = isDark)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    TertiaryServiceGrid(
+                        isDark = isDark,
+                        onCourseSelectionClick = {
+                            // 同一会话内已登录则不再重复索要密码，直接进入
+                            if (selectionState.isLoggedIn) {
+                                onNavigate(Destination.CourseSelection)
+                            } else {
+                                showSelectionLogin = true
+                            }
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    // ── 选课登录对话框 ──
+    // 登录成功 → 关闭对话框并导航进选课页（此时 ViewModel 已是登录态）
+    if (showSelectionLogin) {
+        CourseSelectionLoginDialog(
+            viewModel = courseSelectionViewModel,
+            onSuccess = {
+                showSelectionLogin = false
+                onNavigate(Destination.CourseSelection)
+            },
+            onDismiss = { showSelectionLogin = false }
+        )
     }
 }
 
@@ -487,17 +531,21 @@ private fun SmallServiceCardContent(
 // region 三级功能网格（选课等后续模块）
 
 /**
- * 第三行小卡网格。
+ * 第三行小卡网格：选课入口。
  *
- * 采用 2×2 栅格：本次仅「选课」占左格，右格**刻意留空**而非填一张假卡
- * —— 后续模块可直接占用该位置，无需重排已有卡片。
+ * ## 为什么这样排版
  *
- * 之所以**不**把选课卡塞进上层 `SecondaryServiceGrid`：那一行是三张卡各占
- * 1/3 宽（约 101dp），再加一张会把每张压到约 72dp，导致「图书馆资源」这类
- * 5 字标题被 `maxLines = 1` 截断，属于破坏现有模块视觉的改动。
+ * 「选课」必须与「图书馆资源」**尺寸一致且位于其正下方**。实现方式是让两张卡
+ * 都占用 1/3 栅格（`weight(1f)` + 相同的 12dp 间距），并让两行紧邻 ——
+ * 于是列宽天然对齐，选课卡正对图书馆卡。
+ *
+ * 右侧两格刻意留空，不填假卡：后续模块可直接占用，无需重排已有卡片。
  */
 @Composable
-private fun TertiaryServiceGrid(onNavigate: (Destination) -> Unit, isDark: Boolean) {
+private fun TertiaryServiceGrid(
+    isDark: Boolean,
+    onCourseSelectionClick: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -508,9 +556,10 @@ private fun TertiaryServiceGrid(onNavigate: (Destination) -> Unit, isDark: Boole
             title = stringResource(R.string.campus_course_selection),
             modifier = Modifier.weight(1f),
             isDark = isDark,
-            onClick = { onNavigate(Destination.CourseSelection) }
+            onClick = onCourseSelectionClick
         )
-        // 预留位：保持 2×2 栅格对称，供后续模块使用
+        // 预留位：与图书馆卡同列宽，保持网格对称
+        Spacer(modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.weight(1f))
     }
 }

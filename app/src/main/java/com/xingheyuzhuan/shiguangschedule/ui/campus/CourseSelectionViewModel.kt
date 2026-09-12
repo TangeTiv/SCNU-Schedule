@@ -55,13 +55,36 @@ data class LoadedCourses(
 )
 
 /**
+ * 一门课程及其全部可选教学班（用于列表分组展示）。
+ *
+ * ## 为什么按课程分组
+ *
+ * 教务列表接口返回的是**教学班**粒度：同一门课若有 3 个教学班（不同教师/时间），
+ * 就会出现 3 条记录。直接平铺会让用户看到"同一门课重复出现多次"。
+ *
+ * 分组后每个课程只占一张卡，卡片上标注可选教学班数量，点击后再进入教学班选择。
+ * 这与正方教务网页本身的交互一致。
+ *
+ * @param key 分组键（`kch_id`，与已选清单比对也用它）
+ * @param classes 该课程下已加载的全部教学班；**过滤已选课程时会整组移除**
+ */
+data class CourseGroup(
+    val key: String,
+    val course: SelectableCourse,
+    val classes: List<SelectableCourse>
+) {
+    /** 可选教学班数量，用于卡片角标 */
+    val classCount: Int get() = classes.size
+}
+
+/**
  * 选课模块的顶层状态。
  *
  * ## 为什么把课程列表拆成独立 StateFlow 而不是塞进本类
  *
  * 课程列表每次续拉都会整体替换，若与登录态、轮次信息共用一个 State，
  * 加载 20 批就会触发 20 次整页重组（含 TopAppBar、Tabs）。故课程列表单独
- * 由 [CourseSelectionViewModel.coursesByCategory] 承载，本类只保留低频状态。
+ * 由 [CourseSelectionViewModel.currentCourses] 承载，本类只保留低频状态。
  */
 data class CourseSelectionUiState(
     /** 登录请求进行中 */
@@ -150,33 +173,80 @@ class CourseSelectionViewModel @Inject constructor(
         category?.let { map[it.typeCode] } ?: LoadedCourses()
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LoadedCourses())
 
-    /**
-     * 当前列表用的关键字过滤结果。
-     *
-     * `map` 阶段显式切到 [Dispatchers.Default]：过滤是 O(n) 的 CPU 工作，
-     * 而 `stateIn` 的上游默认在收集者上下文执行，不能让它落回主线程。
-     */
-    val keyword: MutableStateFlow<String> = MutableStateFlow("")
-
-    val displayedCourses: StateFlow<List<SelectableCourse>> = combine(
-        currentCourses,
-        keyword
-    ) { loaded, kw ->
-        // 对应脚本 `_match()` 的本地过滤语义
-        if (kw.isBlank()) loaded.items
-        else loaded.items.filter { c ->
-            "${c.courseCode} ${c.courseName} ${c.className}".lowercase().contains(kw.trim().lowercase())
-        }
-    }.map { list -> withContext(Dispatchers.Default) { list.sortedBy { it.rankInBatch.toIntOrNull() ?: 0 } } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    // ── 已选课程 ──
+    // ── 已选课程（声明在 displayedCourses 之前：过滤逻辑要读它）──
 
     private val _enrolledCourses = MutableStateFlow<List<EnrolledCourse>>(emptyList())
     val enrolledCourses: StateFlow<List<EnrolledCourse>> = _enrolledCourses.asStateFlow()
 
     private val _isLoadingEnrolled = MutableStateFlow(false)
     val isLoadingEnrolled: StateFlow<Boolean> = _isLoadingEnrolled.asStateFlow()
+
+    /**
+     * 列表关键字（本地过滤，不发起服务端搜索）。
+     *
+     * 对应脚本 `keyword` 参数的语义：只在**已拉取到本地**的课程中筛选，
+     * 因此输入关键字不会自动补齐未加载的批次。
+     */
+    val keyword: MutableStateFlow<String> = MutableStateFlow("")
+
+    /**
+     * 因"已选"而被隐藏的课程数量。
+     *
+     * 用于在列表顶部给出一条提示，避免用户误以为课程凭空消失。
+     */
+    private val _hiddenEnrolledCount = MutableStateFlow(0)
+    val hiddenEnrolledCount: StateFlow<Int> = _hiddenEnrolledCount.asStateFlow()
+
+    /**
+     * 当前列表用的关键字过滤结果。
+     *
+     * ## 处理顺序（顺序有意义）
+     *
+     * 1. 关键字过滤（对应脚本 `_match()` 的**本地**过滤语义）
+     * 2. **排除已选课程** —— 教务列表接口会照常返回已选上的课程，
+     *    不过滤就会出现"我已选上却仍列在主修里"的现象
+     * 3. 按 `kch_id` **分组** —— 教务返回教学班粒度，同一门课的多个教学班
+     *    会重复出现；分组后一门课只占一张卡
+     *
+     * `map` 阶段显式切到 [Dispatchers.Default]：以上都是 O(n) 的 CPU 工作，
+     * 而 `stateIn` 的上游默认在收集者上下文执行，不能让它落回主线程。
+     */
+    val displayedCourses: StateFlow<List<CourseGroup>> = combine(
+        currentCourses,
+        keyword,
+        _enrolledCourses
+    ) { loaded, kw, enrolled ->
+        Triple(loaded.items, kw, enrolled)
+    }.map { (items, kw, enrolled) ->
+        withContext(Dispatchers.Default) {
+            val trimmed = kw.trim().lowercase()
+
+            // 1. 关键字过滤
+            val matched = if (trimmed.isEmpty()) {
+                items
+            } else {
+                items.filter { c ->
+                    "${c.courseCode} ${c.courseName} ${c.className}".lowercase().contains(trimmed)
+                }
+            }
+
+            // 2. 排除已选：以权威已选清单的 kch_id / kch 为准
+            val enrolledIds = enrolled.mapTo(mutableSetOf()) { it.courseId }
+            val enrolledCodes = enrolled.mapTo(mutableSetOf()) { it.courseCode }
+            val visible = matched.filterNot { c ->
+                c.courseId in enrolledIds || c.courseCode in enrolledCodes
+            }
+            _hiddenEnrolledCount.value = matched.size - visible.size
+
+            // 3. 按课程分组，组内按批次行号保持教务原始顺序
+            visible
+                .sortedBy { it.rankInBatch.toIntOrNull() ?: 0 }
+                .groupBy { it.courseId.ifBlank { it.courseCode } }
+                .map { (key, classes) ->
+                    CourseGroup(key = key, course = classes.first(), classes = classes)
+                }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // ── 一次性反馈 ──
 
@@ -222,16 +292,32 @@ class CourseSelectionViewModel @Inject constructor(
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 登录并自动加载第一个类别。
+     * 登录并建立选课会话。
      *
      * 登录成功后立即调用 [refreshContext] 抓取选课页上下文 ——
      * 这既是"数据落地"的起点，也是会话有效性的唯一真实校验。
+     *
+     * ## 为什么不再自动加载课程
+     *
+     * 登录入口现在位于【校园】页的对话框（见 `CourseSelectionLoginDialog`），
+     * 对话框成功关闭后才会导航进选课页。若在此处自动拉取，会在用户还没进入
+     * 页面时就开始网络请求。改为由选课页进入后自行触发
+     * （见 [ensureInitialLoad]）。
+     *
+     * @param onSuccess 登录成功的回调（在主线程执行），供对话框决定是否关闭并导航
+     * @param onError 失败信息的回调（在主线程执行）；为 null 时走 [CourseSelectionUiState.errorMessage]
      */
-    fun login(account: String, password: String) {
+    fun login(
+        account: String,
+        password: String,
+        onSuccess: (() -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
         if (_uiState.value.isLoggingIn) return
         val trimmedAccount = account.trim()
         if (trimmedAccount.isBlank() || password.isBlank()) {
-            _uiState.value = _uiState.value.copy(errorMessage = "请输入学号与密码")
+            onError?.invoke("请输入学号与密码")
+                ?: run { _uiState.value = _uiState.value.copy(errorMessage = "请输入学号与密码") }
             return
         }
 
@@ -257,18 +343,27 @@ class CourseSelectionViewModel @Inject constructor(
                 _roundInfo.value = info
                 _categories.value = selector.categories
                 _uiState.value = _uiState.value.copy(isLoggingIn = false, isLoggedIn = true)
-
-                // 登录后立即加载第一个类别（对应决策：不做"查询"二次点击）
-                selector.categories.firstOrNull()?.let { first ->
-                    selectCategory(first, autoLoad = true)
-                }
+                // 已选清单是过滤已选课程的依据，登录后立即拉一次
+                refreshEnrolled(silent = true)
+                onSuccess?.invoke()
             }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false,
-                    errorMessage = e.friendlyMessage()
-                )
+                val message = e.friendlyMessage()
+                _uiState.value = _uiState.value.copy(isLoggingIn = false, errorMessage = message)
+                onError?.invoke(message)
             }
         }
+    }
+
+    /**
+     * 选课页进入后确保首个类别已开始加载。
+     *
+     * 由页面的一次性副作用调用（`LaunchedEffect`），与 [login] 解耦 ——
+     * 这样无论登录发生在校园页对话框还是页面内的重登面板，进入后都能自动出数据。
+     */
+    fun ensureInitialLoad() {
+        if (!_uiState.value.isLoggedIn) return
+        if (_selectedCategory.value != null) return
+        _categories.value.firstOrNull()?.let { selectCategory(it, autoLoad = true) }
     }
 
     /**
@@ -300,6 +395,8 @@ class CourseSelectionViewModel @Inject constructor(
                     isLoggedIn = true,
                     sessionExpired = false
                 )
+                // 重登后已选清单可能已变化，重新拉取
+                refreshEnrolled(silent = true)
                 // 重试中断的选课
                 pendingSelection?.let { pending ->
                     pendingSelection = null
@@ -391,6 +488,19 @@ class CourseSelectionViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 重新加载指定类别：丢弃已缓存分页，回到第一批重新拉取。
+     *
+     * 供页面右下角的刷新按钮使用。之所以整体重置而非增量刷新，是因为
+     * 教务的 `kcrow` 窗口编号依赖"从第一批开始数"，半途重拉会错位。
+     */
+    fun reloadCategory(category: CourseCategory) {
+        updateCategoryCache(category.typeCode) { LoadedCourses() }
+        // 已选清单是过滤依据，刷新课程时一并刷新
+        refreshEnrolled(silent = true)
+        loadNextBatch()
+    }
+
     fun onKeywordChange(value: String) {
         keyword.value = value
     }
@@ -402,12 +512,18 @@ class CourseSelectionViewModel @Inject constructor(
     /**
      * 拉取某课程的全部教学班详情。
      *
+     * ## 顺带按 `kch_id` 分组（修正"同一门课重复出现"）
+     *
+     * 教学班详情接口在**同一次请求**里也会返回同一 `kch_id` 的多条记录
+     * （例如理论课与实验课各自成行）。若原样平铺，用户会看到同一门课
+     * 重复列出。此处以 `kch_id` 分组并同步去重，保证一门课只处理一次。
+     *
      * @param onLoaded 回调在主线程执行，供 UI 弹出选择面板
      * @param onError 失败时的用户可读信息
      */
     fun loadClasses(
         course: SelectableCourse,
-        onLoaded: (List<CourseClass>) -> Unit,
+        onLoaded: (List<CourseGroup>) -> Unit,
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
@@ -418,13 +534,53 @@ class CourseSelectionViewModel @Inject constructor(
                         category = _selectedCategory.value
                     )
                 }
-            }.onSuccess(onLoaded)
-                .onFailure { e ->
-                    handleFailure(e)
-                    onError(e.friendlyMessage())
+            }.onSuccess { classes ->
+                val groups = withContext(Dispatchers.Default) {
+                    classes
+                        .groupBy { it.courseId.ifBlank { it.courseCode } }
+                        .map { (key, group) ->
+                            CourseGroup(
+                                key = key,
+                                course = group.first().toSelectableCourse(fallback = course),
+                                classes = group.map { it.toSelectableCourse(fallback = course) }
+                            )
+                        }
                 }
+                onLoaded(groups)
+            }.onFailure { e ->
+                handleFailure(e)
+                onError(e.friendlyMessage())
+            }
         }
     }
+
+    /**
+     * 把教学班详情转成"可提交的课程"形态。
+     *
+     * 与列表接口的差异必须在这里对齐，否则提交会失败：
+     * - **`classId` 取 `doJxbId`** —— 选课提交真正需要的是 `do_jxb_id`，
+     *   而非列表返回的 `jxb_id`（两者不是同一个值）
+     * - `subCourseCount` 从详情接口的 `jxbzls` 带入，供 UI 判断是否需要勾选子课程
+     */
+    private fun CourseClass.toSelectableCourse(fallback: SelectableCourse): SelectableCourse =
+        SelectableCourse(
+            courseId = courseId.ifBlank { fallback.courseId },
+            courseCode = courseCode.ifBlank { fallback.courseCode },
+            courseName = courseName.ifBlank { fallback.courseName },
+            credits = credits.ifBlank { fallback.credits },
+            classId = doJxbId.ifBlank { classId },
+            className = className,
+            rankInBatch = fallback.rankInBatch,
+            typeCode = fallback.typeCode,
+            isRetake = isRetake,
+            isMinor = isMinor,
+            hasPrerequisite = fallback.hasPrerequisite,
+            isRecommended = fallback.isRecommended,
+            subCourseCount = subCourseCount.ifBlank { fallback.subCourseCount },
+            enrolledCount = enrolledCount,
+            totalHours = fallback.totalHours,
+            courseNature = courseNature
+        )
 
     /**
      * 拉取某教学班的子课程列表。

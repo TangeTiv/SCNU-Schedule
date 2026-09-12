@@ -356,12 +356,29 @@ data class SelectionRoundInfo(
     val selectedCredits: String = "",
     val selectedCount: String = ""
 ) {
-    /** 学年学期展示串，如 "2024-2025学年 第1学期" */
+    /**
+     * 学年学期展示串，如 "2024-2025学年 第一学期"。
+     *
+     * 教务下发的学期是**数字**（`1`/`2`/`3`），直接拼接会得到生硬的
+     * "2026-2027 1"。此处翻译成中文序数；遇到非 1/2/3 的意外取值时
+     * 原样回退，不做猜测。
+     */
     val termDisplay: String
-        get() = listOf(yearName, termName)
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-            .ifBlank { "—" }
+        get() {
+            val yearPart = yearName.takeIf { it.isNotBlank() }?.let {
+                if (it.contains("学年")) it else "$it 学年"
+            }
+            val termPart = when (termName.trim()) {
+                "1" -> "第一学期"
+                "2" -> "第二学期"
+                "3" -> "第三学期"
+                else -> termName.trim()
+            }
+            return listOf(yearPart.orEmpty(), termPart)
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { "—" }
+        }
 }
 
 /**

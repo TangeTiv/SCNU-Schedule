@@ -631,5 +631,12 @@
     <string name="campus_course_selection_confirm_teacher">Teacher</string>
     <string name="campus_course_selection_confirm_time">Time</string>
     <string name="campus_course_selection_cancel">Cancel</string>
+    <string name="campus_course_selection_back_to_top">Back to top</string>
+    <string name="campus_course_selection_refresh_list">Refresh list</string>
+    <string name="campus_course_selection_class_count">%1$d classes</string>
+    <string name="campus_course_selection_single_class">1 class</string>
+    <string name="campus_course_selection_sub_course_hint">Pick sub-courses first</string>
+    <string name="campus_course_selection_hidden_enrolled">%1$d already-selected courses hidden</string>
+    <string name="campus_course_selection_time_pending">Time TBD</string>
 
 </resources>

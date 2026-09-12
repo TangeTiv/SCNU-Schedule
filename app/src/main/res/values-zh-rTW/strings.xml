@@ -631,5 +631,12 @@
     <string name="campus_course_selection_confirm_teacher">教師</string>
     <string name="campus_course_selection_confirm_time">時間</string>
     <string name="campus_course_selection_cancel">取消</string>
+    <string name="campus_course_selection_back_to_top">回到頂部</string>
+    <string name="campus_course_selection_refresh_list">重新整理列表</string>
+    <string name="campus_course_selection_class_count">%1$d 個教學班</string>
+    <string name="campus_course_selection_single_class">1 個教學班</string>
+    <string name="campus_course_selection_sub_course_hint">需先選擇子課程</string>
+    <string name="campus_course_selection_hidden_enrolled">已隱藏 %1$d 門你已選上的課程</string>
+    <string name="campus_course_selection_time_pending">時間待定</string>
 
 </resources>
