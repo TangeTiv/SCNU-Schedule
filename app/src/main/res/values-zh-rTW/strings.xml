@@ -640,5 +640,6 @@
     <string name="campus_course_selection_full_badge">已滿</string>
     <!-- 教學班按鈕文案：與「已滿」Badge 區分措辭，避免同屏出現兩個「已滿」 -->
     <string name="campus_course_selection_class_full_action">名額已滿</string>
+    <string name="campus_course_selection_tap_to_view_classes">點擊查看教學班與餘量</string>
 
 </resources>

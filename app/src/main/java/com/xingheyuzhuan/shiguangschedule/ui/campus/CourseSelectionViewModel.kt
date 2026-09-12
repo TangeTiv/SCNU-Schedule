@@ -198,6 +198,17 @@ class CourseSelectionViewModel @Inject constructor(
     val isLoadingEnrolled: StateFlow<Boolean> = _isLoadingEnrolled.asStateFlow()
 
     /**
+     * 已选清单是否已成功加载过至少一次。
+     *
+     * **这是"已选课程过滤"的前置条件**：若清单尚未就绪就把课程渲染出去，
+     * 已选课程会先显示、再被过滤掉（或干脆漏过滤）。因此 [displayedCourses]
+     * 在清单未就绪时输出空列表，由 UI 显示加载中，避免用户看到"已选的课
+     * 短暂出现又消失"或"根本没被过滤"。
+     */
+    private val _isEnrolledReady = MutableStateFlow(false)
+    val isEnrolledReady: StateFlow<Boolean> = _isEnrolledReady.asStateFlow()
+
+    /**
      * 列表关键字（本地过滤，不发起服务端搜索）。
      *
      * 对应脚本 `keyword` 参数的语义：只在**已拉取到本地**的课程中筛选，
@@ -206,22 +217,15 @@ class CourseSelectionViewModel @Inject constructor(
     val keyword: MutableStateFlow<String> = MutableStateFlow("")
 
     /**
-     * 因"已选"而被隐藏的课程数量。
-     *
-     * 用于在列表顶部给出一条提示，避免用户误以为课程凭空消失。
-     */
-    private val _hiddenEnrolledCount = MutableStateFlow(0)
-    val hiddenEnrolledCount: StateFlow<Int> = _hiddenEnrolledCount.asStateFlow()
-
-    /**
      * 当前列表用的关键字过滤结果。
      *
      * ## 处理顺序（顺序有意义）
      *
-     * 1. 关键字过滤（对应脚本 `_match()` 的**本地**过滤语义）
-     * 2. **排除已选课程** —— 教务列表接口会照常返回已选上的课程，
+     * 1. **等待已选清单就绪** —— 否则过滤无从谈起（见 [_isEnrolledReady]）
+     * 2. 关键字过滤（对应脚本 `_match()` 的**本地**过滤语义）
+     * 3. **排除已选课程** —— 教务列表接口会照常返回已选上的课程，
      *    不过滤就会出现"我已选上却仍列在主修里"的现象
-     * 3. 按 `kch_id` **分组** —— 教务返回教学班粒度，同一门课的多个教学班
+     * 4. 按 `kch_id` **分组** —— 教务返回教学班粒度，同一门课的多个教学班
      *    会重复出现；分组后一门课只占一张卡
      *
      * `map` 阶段显式切到 [Dispatchers.Default]：以上都是 O(n) 的 CPU 工作，
@@ -230,29 +234,30 @@ class CourseSelectionViewModel @Inject constructor(
     val displayedCourses: StateFlow<List<CourseGroup>> = combine(
         currentCourses,
         keyword,
-        _enrolledCourses
-    ) { loaded, kw, enrolled ->
-        Triple(loaded.items, kw, enrolled)
-    }.map { (items, kw, enrolled) ->
+        _enrolledCourses,
+        _isEnrolledReady
+    ) { loaded, kw, enrolled, enrolledReady ->
+        CourseFilterInput(loaded.items, kw, enrolled, enrolledReady)
+    }.map { input ->
         withContext(Dispatchers.Default) {
-            val trimmed = kw.trim().lowercase()
+            // 1. 已选清单未就绪 → 先不显示任何课程，等过滤依据到位
+            if (!input.enrolledReady) return@withContext emptyList<CourseGroup>()
 
-            // 1. 关键字过滤
+            // 2. 关键字过滤
+            val trimmed = input.keyword.trim().lowercase()
             val matched = if (trimmed.isEmpty()) {
-                items
+                input.items
             } else {
-                items.filter { c ->
+                input.items.filter { c ->
                     "${c.courseCode} ${c.courseName} ${c.className}".lowercase().contains(trimmed)
                 }
             }
 
-            // 2. 排除已选：以权威已选清单为准。
-            //    用 isEnrolledIn 多口径判定（kch_id / kch 双兜底），
-            //    只比 kch_id 会因某侧字段为空而漏判 —— 那正是"已选课程仍显示"的根因。
-            val visible = matched.filterNot { it.isEnrolledIn(enrolled) }
-            _hiddenEnrolledCount.value = matched.size - visible.size
+            // 3. 排除已选：多口径判定（kch_id / kch + 课程名交叉校验）
+            val visible = matched.filterNot { it.isEnrolledIn(input.enrolled) }
 
-            // 3. 按课程分组，组内按批次行号保持教务原始顺序
+            // 4. 按课程分组，组内按批次行号保持教务原始顺序。
+            //    分组键用 kch_id（缺失时退化为 kch），保证一门课只出现一次。
             visible
                 .sortedBy { it.rankInBatch.toIntOrNull() ?: 0 }
                 .groupBy { it.courseId.ifBlank { it.courseCode } }
@@ -261,6 +266,14 @@ class CourseSelectionViewModel @Inject constructor(
                 }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** [displayedCourses] 的 combine 输入载体（避免超过 5 个参数上限） */
+    private data class CourseFilterInput(
+        val items: List<SelectableCourse>,
+        val keyword: String,
+        val enrolled: List<EnrolledCourse>,
+        val enrolledReady: Boolean
+    )
 
     // ── 一次性反馈 ──
 
@@ -764,7 +777,12 @@ class CourseSelectionViewModel @Inject constructor(
 
                     val targetId = course.courseId.ifBlank { course.courseCode }
                     val nowEnrolled = confirmed?.let { list ->
-                        isCourseEnrolled(targetId, course.courseCode, list)
+                        isCourseEnrolled(
+                            selectableCourseId = targetId,
+                            selectableCourseCode = course.courseCode,
+                            selectableCourseName = course.courseName,
+                            enrolled = list
+                        )
                     } ?: false
 
                     when {
@@ -892,6 +910,8 @@ class CourseSelectionViewModel @Inject constructor(
                 withContext(Dispatchers.IO) { selector.myEnrolled() }
             }.onSuccess {
                 _enrolledCourses.value = it
+                // 标记清单就绪 —— 过滤已选课程的前置条件（见 displayedCourses）
+                _isEnrolledReady.value = true
                 if (!silent) pushFeedback("已选课程已刷新", isSuccess = true)
             }.onFailure { e ->
                 if (!silent) {
@@ -965,7 +985,7 @@ class CourseSelectionViewModel @Inject constructor(
         selectionLoadJob = null
         _coursesByCategory.value = emptyMap()
         _enrolledCourses.value = emptyList()
-        _hiddenEnrolledCount.value = 0
+        _isEnrolledReady.value = false
         _categories.value = emptyList()
         _selectedCategory.value = null
         _roundInfo.value = SelectionRoundInfo()

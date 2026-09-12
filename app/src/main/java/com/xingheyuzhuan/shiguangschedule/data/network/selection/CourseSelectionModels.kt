@@ -520,23 +520,53 @@ private fun sameCourseKey(a: String, b: String): Boolean {
 /**
  * 判断某门可选课程是否已在已选清单中。
  *
- * 依次尝试 `kch_id` 与 `kch` 两个口径，任一命中即视为已选。
+ * ## 多口径 + 课程名交叉校验
+ *
+ * 「可选课程」与「已选课程」来自两个不同接口，同一门课在两个响应里的字段
+ * 填充程度并不一致（`kch_id` 可能一侧为空、`kch` 格式可能有细微差异），
+ * 因此判定必须层层兜底：
+ *
+ * 1. `kch_id` 精确匹配
+ * 2. `kch` 精确匹配 **且** 课程名不冲突（防止课程号复用造成的误判）
+ * 3. `kch` 精确匹配（课程名双方都缺失时的兜底）
+ *
+ * 空串一律不参与比较，避免"两边都为空"被误判为同一门课。
  *
  * @param selectableCourseId 可选课程的 `kch_id`
  * @param selectableCourseCode 可选课程的 `kch`
+ * @param selectableCourseName 可选课程的 `kcmc`，用于交叉校验
  * @param enrolled 已选清单
  */
 fun isCourseEnrolled(
     selectableCourseId: String,
     selectableCourseCode: String,
+    selectableCourseName: String,
     enrolled: List<EnrolledCourse>
-): Boolean = enrolled.any { e ->
-    sameCourseKey(e.courseId, selectableCourseId) ||
-            sameCourseKey(e.courseCode, selectableCourseCode)
+): Boolean {
+    val id = normalizeCourseKey(selectableCourseId)
+    val code = normalizeCourseKey(selectableCourseCode)
+    val name = normalizeCourseKey(selectableCourseName)
+
+    return enrolled.any { e ->
+        val eId = normalizeCourseKey(e.courseId)
+        val eCode = normalizeCourseKey(e.courseCode)
+        val eName = normalizeCourseKey(e.courseName)
+
+        when {
+            // 1. 内部 ID 精确匹配（最强证据）
+            id.isNotEmpty() && id == eId -> true
+
+            // 2. 课程号匹配，且课程名不冲突
+            code.isNotEmpty() && code == eCode ->
+                name.isEmpty() || eName.isEmpty() || name == eName
+
+            else -> false
+        }
+    }
 }
 
 /**
  * 判断某门可选课程自身是否已在已选清单中（便捷重载）。
  */
 fun SelectableCourse.isEnrolledIn(enrolled: List<EnrolledCourse>): Boolean =
-    isCourseEnrolled(courseId, courseCode, enrolled)
+    isCourseEnrolled(courseId, courseCode, courseName, enrolled)

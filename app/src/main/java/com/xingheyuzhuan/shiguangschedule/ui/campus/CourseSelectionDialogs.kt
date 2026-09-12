@@ -320,7 +320,8 @@ private fun ClassRow(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        // 弹层内不放投影：卡片靠底色与页面区分即可，避免"浮起来"的层次感
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
@@ -429,7 +430,7 @@ private fun InfoLine(text: String, color: androidx.compose.ui.graphics.Color) {
 private fun SubCourseRow(sub: SubCourse, checked: Boolean, onToggle: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         onClick = onToggle,
         modifier = Modifier.fillMaxWidth()
     ) {

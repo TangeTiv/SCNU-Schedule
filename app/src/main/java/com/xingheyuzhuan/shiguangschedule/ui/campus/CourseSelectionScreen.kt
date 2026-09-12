@@ -25,7 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.School
@@ -136,6 +136,7 @@ fun CourseSelectionScreen(
     val displayedCourses by viewModel.displayedCourses.collectAsStateWithLifecycle()
     val enrolledCourses by viewModel.enrolledCourses.collectAsStateWithLifecycle()
     val isLoadingEnrolled by viewModel.isLoadingEnrolled.collectAsStateWithLifecycle()
+    val isEnrolledReady by viewModel.isEnrolledReady.collectAsStateWithLifecycle()
     val feedback by viewModel.feedback.collectAsStateWithLifecycle()
     val keyword by viewModel.keyword.collectAsStateWithLifecycle()
 
@@ -236,6 +237,7 @@ fun CourseSelectionScreen(
                 displayedCourses = displayedCourses,
                 enrolledCourses = enrolledCourses,
                 isLoadingEnrolled = isLoadingEnrolled,
+                isEnrolledReady = isEnrolledReady,
                 showEnrolledTab = showEnrolledTab,
                 onShowEnrolledTab = { showEnrolledTab = true },
                 onShowCategoryTab = { category ->
@@ -510,6 +512,8 @@ private fun CourseBrowserPane(
     displayedCourses: List<CourseGroup>,
     enrolledCourses: List<EnrolledCourse>,
     isLoadingEnrolled: Boolean,
+    /** 已选清单是否已就绪；未就绪时展示加载态而非"无课程" */
+    isEnrolledReady: Boolean,
     showEnrolledTab: Boolean,
     onShowEnrolledTab: () -> Unit,
     onShowCategoryTab: (CourseCategory) -> Unit,
@@ -625,7 +629,11 @@ private fun CourseBrowserPane(
                     )
                 }
 
-                if (displayedCourses.isEmpty() && !courses.isLoadingMore) {
+                // 已选清单未就绪时不显示课程 —— 过滤依据尚未到位，
+                // 此时渲染会导致已选课程先出现再消失，或干脆漏过滤
+                if (!isEnrolledReady) {
+                    item { LoadingRow() }
+                } else if (displayedCourses.isEmpty() && !courses.isLoadingMore) {
                     item { EmptyHint(text = stringResource(R.string.campus_course_selection_no_courses)) }
                 } else {
                     items(
@@ -876,8 +884,6 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
 @Composable
 private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
     val course = group.course
-    // 列表接口无容量字段，isFull 会自动退化为按已选人数阈值的宽松判定
-    val likelyFull = course.isFull
 
     Card(
         onClick = onClick,
@@ -905,16 +911,15 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                when {
-                    likelyFull -> InfoBadge(
-                        text = stringResource(R.string.campus_course_selection_full_badge),
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                    course.hasSubCourses -> InfoBadge(
+                // 列表层不标注"已满"：列表接口无容量字段，任何判定都是猜测。
+                // 仅区分"含子课程"与"教学班数量"这两类**确定**信息。
+                if (course.hasSubCourses) {
+                    InfoBadge(
                         text = stringResource(R.string.campus_course_selection_sub_course_badge),
                         contentColor = MaterialTheme.colorScheme.tertiary
                     )
-                    else -> InfoBadge(
+                } else {
+                    InfoBadge(
                         text = if (group.classCount > 1) {
                             stringResource(R.string.campus_course_selection_class_count, group.classCount)
                         } else {
@@ -953,49 +958,39 @@ private fun CourseRow(group: CourseGroup, onClick: () -> Unit) {
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 信息行：已选人数（按余量着色）+ 子课程提示
+            // 信息行：子课程 / 教学班数量提示
+            //
+            // 人数**不在此处显示**：列表接口没有容量字段，光有已选人数无法判断
+            // 是否已满，反而误导。人数与"已满"判定统一放在点开后的教学班弹窗里
+            // （那里有 jxbrs/jxbrl 精确数据）。
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = Icons.Filled.Groups,
+                    imageVector = Icons.Filled.Info,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = when {
-                        likelyFull -> MaterialTheme.colorScheme.error
-                        course.hasSubCourses -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (course.hasSubCourses) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = buildString {
-                        if (course.enrolledCount.isNotBlank()) {
-                            append(
-                                stringResource(
-                                    R.string.campus_course_selection_enrolled_count,
-                                    course.enrolledCount
-                                )
-                            )
-                        }
-                        if (course.hasSubCourses) {
-                            if (isNotEmpty()) append(" · ")
-                            append(stringResource(R.string.campus_course_selection_sub_course_hint))
-                        } else if (group.classCount > 1) {
-                            if (isNotEmpty()) append(" · ")
-                            append(
-                                stringResource(
-                                    R.string.campus_course_selection_class_count,
-                                    group.classCount
-                                )
-                            )
-                        }
-                        if (isEmpty()) append("—")
+                    text = when {
+                        course.hasSubCourses ->
+                            stringResource(R.string.campus_course_selection_sub_course_hint)
+                        group.classCount > 1 -> stringResource(
+                            R.string.campus_course_selection_class_count,
+                            group.classCount
+                        )
+                        else -> stringResource(R.string.campus_course_selection_tap_to_view_classes)
                     },
                     fontSize = 14.sp,
-                    fontWeight = if (likelyFull) FontWeight.Bold else FontWeight.Normal,
-                    color = when {
-                        likelyFull -> MaterialTheme.colorScheme.error
-                        course.hasSubCourses -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = if (course.hasSubCourses) FontWeight.Medium else FontWeight.Normal,
+                    color = if (course.hasSubCourses) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     },
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis

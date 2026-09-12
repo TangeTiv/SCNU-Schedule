@@ -640,5 +640,6 @@
     <string name="campus_course_selection_full_badge">Full</string>
     <!-- Class button label, worded differently from the "Full" badge above -->
     <string name="campus_course_selection_class_full_action">No seats</string>
+    <string name="campus_course_selection_tap_to_view_classes">Tap to view classes and seats</string>
 
 </resources>
