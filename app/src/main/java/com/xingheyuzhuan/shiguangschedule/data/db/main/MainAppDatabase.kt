@@ -22,13 +22,19 @@ import kotlinx.coroutines.runBlocking
         TimeSlot::class,
         CourseTableConfig::class,
         GradeEntity::class,
-        ExamEntity::class
+        ExamEntity::class,
+        // v1.6.0 学业情况
+        AcademicPlanNodeEntity::class,
+        AcademicCourseEntity::class,
+        AcademicNonFormalCourseEntity::class
     ],
-    version = 6,
+    version = 7,
     autoMigrations = [
         AutoMigration(from = 3, to = 4),
         AutoMigration(from = 4, to = 5, spec = MainAppDatabase.RemoveAppSettingsSpec::class),
-        AutoMigration(from = 5, to = 6)
+        AutoMigration(from = 5, to = 6),
+        // 6 → 7 只新增三张学业情况表，不触碰任何既有表，因此可安全自动迁移。
+        AutoMigration(from = 6, to = 7)
     ],
     exportSchema = true
 )
@@ -45,6 +51,9 @@ abstract class MainAppDatabase : RoomDatabase() {
     abstract fun courseTableConfigDao(): CourseTableConfigDao
     abstract fun gradeDao(): GradeDao
     abstract fun examDao(): ExamDao
+
+    /** 学业情况（培养计划 + 第二类课）DAO。 */
+    abstract fun academicDao(): AcademicDao
 
     companion object {
         @Volatile

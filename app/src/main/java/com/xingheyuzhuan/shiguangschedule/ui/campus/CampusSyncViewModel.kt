@@ -12,9 +12,11 @@ import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTable
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeekDao
+import com.xingheyuzhuan.shiguangschedule.data.db.main.AcademicDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.GradeDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.toEntity
+import com.xingheyuzhuan.shiguangschedule.data.network.ScnuAcademicScraper
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuScraper
 import com.xingheyuzhuan.shiguangschedule.data.network.toCourseEntity
 import com.xingheyuzhuan.shiguangschedule.data.network.parseWeeks
@@ -72,8 +74,10 @@ sealed interface SyncUiState {
 @HiltViewModel
 class CampusSyncViewModel @Inject constructor(
     private val scraper: ScnuScraper,
+    private val academicScraper: ScnuAcademicScraper,
     private val gradeDao: GradeDao,
     private val examDao: ExamDao,
+    private val academicDao: AcademicDao,
     @Named("AppSettings") private val dataStore: DataStore<Preferences>,
     // ── 课程表同步所需依赖 ──
     private val courseDao: CourseDao,
@@ -123,13 +127,15 @@ class CampusSyncViewModel @Inject constructor(
      * @param syncCourses 是否需要同步学期课程表
      * @param syncGrades  是否需要同步成绩数据
      * @param syncExams   是否需要同步考试安排
+     * @param syncAcademic 是否需要同步学业情况（培养计划 + 学分完成度 + 非正式学时）
      */
     fun startSync(
         account: String,
         password: String,
         syncCourses: Boolean,
         syncGrades: Boolean,
-        syncExams: Boolean
+        syncExams: Boolean,
+        syncAcademic: Boolean = false
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
@@ -249,14 +255,85 @@ class CampusSyncViewModel @Inject constructor(
                     }
                 }
 
+                // ── 第 5 步：抓取并写入学业情况（培养计划 + 非正式学时）──
+                var academicFailureCount = 0
+                if (syncAcademic) {
+                    academicFailureCount = syncAcademicData(account)
+                }
+
                 // ── 全部完成 ──
-                _syncUiState.value = SyncUiState.Success("同步圆满成功！")
+                _syncUiState.value = if (academicFailureCount > 0) {
+                    // 逐项容错：部分计划点/学期没取到数据时，如实告知而不是谎报成功
+                    SyncUiState.Success(
+                        "同步完成。学业情况有 $academicFailureCount 项未取到数据，" +
+                                "其余数据已更新"
+                    )
+                } else {
+                    SyncUiState.Success("同步圆满成功！")
+                }
             }.onFailure { e ->
                 _syncUiState.value = SyncUiState.Error(
                     e.message ?: "同步失败，请稍后重试"
                 )
             }
         }
+    }
+
+    /**
+     * 执行学业情况同步，返回**失败项数量**（0 表示全部成功）。
+     *
+     * ## 为什么单独抽一个方法
+     *
+     * 学业情况要打 33 个计划点 + 6~8 个学期的接口（约 40 次请求），
+     * 是整个同步流程里最容易遇到抖动的部分。把它隔离出来后：
+     * - 抓取器的逐项容错结果能转成对用户有意义的「N 项失败」文案
+     * - 落库与抓取分离，抓取失败不会污染已有数据
+     *
+     * ## 落库顺序（重要）
+     *
+     * **先抓完再写库**，且只在抓到非空数据时才覆盖。
+     * DAO 的 `replaceXxx` 对空列表是 no-op，因此一次失败的同步
+     * 不会把用户上次成功的学业数据抹掉。
+     */
+    private suspend fun syncAcademicData(account: String): Int {
+        var failureCount = 0
+
+        // ── 5a. 培养计划树 + 各计划点课程 ──
+        _syncUiState.value = SyncUiState.Loading("正在抓取培养计划…")
+        val planResult = academicScraper.fetchAcademicPlan(account) { done, total, current ->
+            if (total > 0 && current.isNotEmpty()) {
+                // 在 IO 线程更新进度状态，UI 侧只读，安全
+                _syncUiState.value =
+                    SyncUiState.Loading("正在抓取培养计划… ($done/$total) $current")
+            }
+        }
+
+        _syncUiState.value = SyncUiState.Loading("正在写入学业数据…")
+        academicDao.replacePlanNodes(
+            planResult.nodes.mapIndexed { index, node -> node.toEntity(index) }
+        )
+        academicDao.replaceCourses(
+            planResult.coursesByNode.flatMap { (nodeId, courses) ->
+                courses.map { it.toEntity(nodeId) }
+            }
+        )
+        failureCount += planResult.failedNodes.size
+
+        // ── 5b. 非正式学时（第二类课，需扫描全部学年学期）──
+        _syncUiState.value = SyncUiState.Loading("正在抓取非正式学时…")
+        val nonFormalResult = academicScraper.fetchNonFormalCourses(account) { done, total, label ->
+            if (total > 0 && label.isNotEmpty()) {
+                _syncUiState.value =
+                    SyncUiState.Loading("正在抓取非正式学时… ($done/$total) $label")
+            }
+        }
+
+        academicDao.replaceNonFormalCourses(
+            nonFormalResult.courses.map { it.toEntity() }
+        )
+        failureCount += nonFormalResult.failedTerms.size
+
+        return failureCount
     }
 
     /**

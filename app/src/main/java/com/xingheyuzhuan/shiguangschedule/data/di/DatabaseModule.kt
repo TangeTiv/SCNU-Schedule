@@ -1,6 +1,7 @@
 package com.xingheyuzhuan.shiguangschedule.data.di
 
 import android.content.Context
+import com.xingheyuzhuan.shiguangschedule.data.db.main.AcademicDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableConfigDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTableDao
@@ -62,6 +63,11 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideExamDao(db: MainAppDatabase): ExamDao = db.examDao()
+
+    /** 学业情况（培养计划 + 第二类课）DAO。 */
+    @Provides
+    @Singleton
+    fun provideAcademicDao(db: MainAppDatabase): AcademicDao = db.academicDao()
 
     // --- 3. 提供小组件数据库 (WidgetDatabase) 的 DAO ---
 
