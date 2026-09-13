@@ -1,21 +1,21 @@
 {
   "prod": {
-    "latestVersionCode": 11,
-    "latestVersionName": "1.5.0",
-    "changelog": "🚀 v1.5.0 更新\n- 【校园】新增「自主选课」：查询课程与教学班、选课（含多子课程）、退选\n- 选课支持按类别浏览、关键字搜索，已选课程以权威清单为准\n- 课程列表按课程分组，不再重复显示；已选课程自动从列表中隐去\n- 教学班显示已选人数与容量，已满课程禁止选课并标注「已满」\n- 【考试安排】【查询成绩】适配深色模式（浅色模式保持原样）\n- 修正校园页欢迎卡每帧重算日期的性能开销",
+    "latestVersionCode": 12,
+    "latestVersionName": "1.6.0",
+    "changelog": "🚀 v1.6.0 更新\n- 【校园】新增「学业情况」：展示培养计划、学分完成度与非正式学时，共 5 个标签页\n- 一级标签用胶囊切换，二级标签为 iOS 分段控件（含滑动动画）\n- 父节点自动汇总子模块课程数，树枝逐级折叠展开\n- 「非正式学时」按课程名 / 学年学期 / 学时列表展示\n- 【教务同步】新增「学业情况」同步项（含非正式学时）\n- 校园页主网格第 4 张卡换成「学业情况」，校园地图移至下方小卡\n- 同步稳定性：兼容教务数字/字符串混用字段，新增瞬时故障自动重试\n⚠️ 本次涉及数据库升级（v6 → v7），首次启动会自动迁移，不影响已有数据",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.5.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.6.0/SCNU-Schedule.apk"
     },
     "checksums": {
-      "universal": "19c48dc63bf3fd75437fee2da4f644126143e2813532e355ee1584ba0c91d219"
+      "universal": "01412b9b8e33cc190a61883bf9c9090858ade49b712669b4961030c413f94295"
     }
   },
   "dev": {
-    "latestVersionCode": 11,
-    "latestVersionName": "1.5.0-dev",
-    "changelog": "🚀 v1.5.0 更新\n- 【校园】新增「自主选课」：查询课程与教学班、选课（含多子课程）、退选\n- 选课支持按类别浏览、关键字搜索，已选课程以权威清单为准\n- 课程列表按课程分组，不再重复显示；已选课程自动从列表中隐去\n- 教学班显示已选人数与容量，已满课程禁止选课并标注「已满」\n- 【考试安排】【查询成绩】适配深色模式（浅色模式保持原样）\n- 修正校园页欢迎卡每帧重算日期的性能开销",
+    "latestVersionCode": 12,
+    "latestVersionName": "1.6.0-dev",
+    "changelog": "🚀 v1.6.0 更新\n- 【校园】新增「学业情况」：展示培养计划、学分完成度与非正式学时，共 5 个标签页\n- 一级标签用胶囊切换，二级标签为 iOS 分段控件（含滑动动画）\n- 父节点自动汇总子模块课程数，树枝逐级折叠展开\n- 「非正式学时」按课程名 / 学年学期 / 学时列表展示\n- 【教务同步】新增「学业情况」同步项（含非正式学时）\n- 校园页主网格第 4 张卡换成「学业情况」，校园地图移至下方小卡\n- 同步稳定性：兼容教务数字/字符串混用字段，新增瞬时故障自动重试\n⚠️ 本次涉及数据库升级（v6 → v7），首次启动会自动迁移，不影响已有数据",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.5.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.6.0/SCNU-Schedule.apk"
     },
     "checksums": {
       "universal": ""
