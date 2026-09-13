@@ -1,5 +1,7 @@
 package com.xingheyuzhuan.shiguangschedule.data.di
 
+import com.xingheyuzhuan.shiguangschedule.data.network.RetryInterceptor
+import com.xingheyuzhuan.shiguangschedule.data.network.ScnuAcademicScraper
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuCookieJar
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuScraper
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuTrustAllManager
@@ -58,6 +60,9 @@ object NetworkModule {
                         .build()
                 )
             }
+            // 瞬时故障退避重试。只作用于幂等请求与显式标注 RETRY_HEADER 的只读查询，
+            // 因此对已发布的课表/成绩/考试同步链路只是变健壮，行为语义不变。
+            .addInterceptor(RetryInterceptor())
             .build()
     }
 
@@ -72,4 +77,17 @@ object NetworkModule {
         @Named("scnu") httpClient: OkHttpClient,
         @Named("scnu") json: Json
     ): ScnuScraper = ScnuScraper(httpClient, json)
+
+    /**
+     * 学业情况抓取器。
+     *
+     * 与 [ScnuScraper] 共用同一个 `@Named("scnu")` client 与 CookieJar，
+     * 因此 [ScnuScraper.login] 建立的会话对它直接生效。
+     */
+    @Provides
+    @Singleton
+    fun provideScnuAcademicScraper(
+        @Named("scnu") httpClient: OkHttpClient,
+        @Named("scnu") json: Json
+    ): ScnuAcademicScraper = ScnuAcademicScraper(httpClient, json)
 }

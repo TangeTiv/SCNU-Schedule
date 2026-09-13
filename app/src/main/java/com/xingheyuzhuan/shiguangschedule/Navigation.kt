@@ -49,6 +49,14 @@ sealed interface Destination : NavKey {
     @Serializable data object Exams : Destination
 
     /**
+     * 学业情况（培养计划树 + 学分完成度 + 非正式学时）。
+     *
+     * 无参数：数据由教务同步写入本地 Room，页面自行从数据库订阅；
+     * 层级与标签页划分在读取时按树的 depth 现算，不需要导航传参。
+     */
+    @Serializable data object Academic : Destination
+
+    /**
      * 自主选课（SCNU 教务 `/xsxk` 选课域）。
      *
      * 无参数：模块自身管理登录态与课程缓存，且**退出即清空**（临时沙盒），

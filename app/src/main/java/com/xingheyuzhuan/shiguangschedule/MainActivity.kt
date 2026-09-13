@@ -29,6 +29,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
+import com.xingheyuzhuan.shiguangschedule.ui.campus.AcademicScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CourseSelectionScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CourseSelectionViewModel
@@ -229,6 +230,7 @@ fun ScreenContent(
         Destination.ScnuVerification -> ScnuVerificationScreen(onNavigate, onBack)
         Destination.Grades -> GradeScreen(onBack = onBack)
         Destination.Exams -> ExamScreen(onBack = onBack)
+        Destination.Academic -> AcademicScreen(onBack = onBack)
         Destination.CourseSelection -> CourseSelectionScreen(
             onNavigate = onNavigate,
             onBack = onBack,

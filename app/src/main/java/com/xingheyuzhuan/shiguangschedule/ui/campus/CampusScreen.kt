@@ -21,11 +21,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Grading
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Card
@@ -334,11 +334,11 @@ private fun PrimaryServiceGrid(onNavigate: (Destination) -> Unit, isDark: Boolea
                 isDark = isDark
             )
             ServiceCard(
-                icon = Icons.Filled.Map,
-                iconBgColor = Color(0xFFF43F5E),
-                title = stringResource(R.string.campus_card_map),
-                subtitle = stringResource(R.string.campus_card_map_desc),
-                onClick = { WeChatMiniProgramLauncher.launchMap(context) },
+                icon = Icons.Filled.School,
+                iconBgColor = Color(0xFF0891B2),
+                title = stringResource(R.string.campus_card_academic),
+                subtitle = stringResource(R.string.campus_card_academic_desc),
+                onClick = { onNavigate(Destination.Academic) },
                 modifier = Modifier.weight(1f),
                 isDark = isDark
             )
@@ -413,6 +413,7 @@ private fun ServiceCard(
 
 @Composable
 private fun SecondaryServiceGrid(isDark: Boolean) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -425,9 +426,10 @@ private fun SecondaryServiceGrid(isDark: Boolean) {
             isDark = isDark
         )
         SmallServiceCard(
-            icon = Icons.Filled.DirectionsBus,
-            iconBgColor = Color(0xFF3B82F6),
-            title = stringResource(R.string.campus_service_transport),
+            icon = Icons.Filled.Map,
+            iconBgColor = Color(0xFFF43F5E),
+            title = stringResource(R.string.campus_card_map),
+            onClick = { WeChatMiniProgramLauncher.launchMap(context) },
             modifier = Modifier.weight(1f),
             isDark = isDark
         )
@@ -451,8 +453,8 @@ private fun SmallServiceCard(
     /**
      * 点击行为。
      *
-     * 为 null 时卡片保持纯展示（现有「图书馆资源 / 校园交通 / 校园渠道」即为此状态，
-     * 本次新增选课模块**不改变它们的交互**）。
+     * 为 null 时卡片保持纯展示（现有「图书馆资源 / 校园渠道」即为此状态）。
+     * 「校园地图」自 v1.6.0 起从主网格移到这里，因此带上了跳转微信小程序的 onClick。
      * 非 null 时整卡可点，但仍沿用完全相同的视觉规格。
      */
     onClick: (() -> Unit)? = null

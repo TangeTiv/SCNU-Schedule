@@ -65,20 +65,27 @@ import com.xingheyuzhuan.shiguangschedule.R
 /**
  * 同步选项数据类。
  *
- * 承载用户对于「课程 / 成绩 / 考试」三项同步内容的选择状态，
+ * 承载用户对于「课程 / 成绩 / 考试 / 学业情况」四项同步内容的选择状态，
  * 并提供 [hasSelection] 与 [allSelected] 两个派生属性，
  * 供上层（MainActivity）在触发同步前读取使用。
  */
 data class SyncOptions(
     val courses: Boolean = false,
     val grades: Boolean = false,
-    val exams: Boolean = false
+    val exams: Boolean = false,
+    /**
+     * 学业情况（培养计划 + 学分完成度 + 非正式学时）。
+     *
+     * 数据来自两个独立教务模块（N105515 培养计划 / N305012 第二类课），
+     * 但面向用户是同一个功能，故合并为一个选项。
+     */
+    val academic: Boolean = false
 ) {
     /** 是否至少选中一项 */
-    val hasSelection: Boolean get() = courses || grades || exams
+    val hasSelection: Boolean get() = courses || grades || exams || academic
 
-    /** 是否三项全选中 */
-    val allSelected: Boolean get() = courses && grades && exams
+    /** 是否四项全选中 */
+    val allSelected: Boolean get() = courses && grades && exams && academic
 }
 
 /**
@@ -116,6 +123,7 @@ fun SyncSelectionScreen(
             "courses" -> options.copy(courses = !options.courses)
             "grades" -> options.copy(grades = !options.grades)
             "exams" -> options.copy(exams = !options.exams)
+            "academic" -> options.copy(academic = !options.academic)
             else -> options
         }
     }
@@ -124,7 +132,8 @@ fun SyncSelectionScreen(
         options = SyncOptions(
             courses = !options.allSelected,
             grades = !options.allSelected,
-            exams = !options.allSelected
+            exams = !options.allSelected,
+            academic = !options.allSelected
         )
     }
 
@@ -282,6 +291,16 @@ fun SyncSelectionScreen(
                         selected = options.exams,
                         onClick = { toggleOption("exams") }
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 选项 4: 学业情况（培养计划 + 学分完成度 + 非正式学时）
+                    SyncOptionCard(
+                        titleRes = R.string.campus_sync_academic,
+                        descRes = R.string.campus_sync_academic_desc,
+                        selected = options.academic,
+                        onClick = { toggleOption("academic") }
+                    )
                 }
 
                 // 底部按钮区域
@@ -303,7 +322,8 @@ fun SyncSelectionScreen(
                                 password = password,
                                 syncCourses = options.courses,
                                 syncGrades = options.grades,
-                                syncExams = options.exams
+                                syncExams = options.exams,
+                                syncAcademic = options.academic
                             )
                         },
                         enabled = options.hasSelection && account.isNotBlank() && password.isNotBlank(),
