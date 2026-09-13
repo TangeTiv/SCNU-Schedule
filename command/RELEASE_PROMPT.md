@@ -213,6 +213,41 @@ git push origin main     # 镜像到 GitHub
     - 顺带一提：脚本开头设了 `$ErrorActionPreference = "Stop"`，首个错误即中止、
       不会带病往下推，这点是可靠的——所以**出错后要人工接管，而不是重跑**。
 
+13. **⚠️ `$ErrorActionPreference = "Stop"` + `git push` 会在「推送已成功」时误报失败**（v1.6.0 实测）：
+    脚本第 2 步 `git push $GiteeRemote "refs/tags/$tag" 2>&1 | Select-String ...` 会**中止整个脚本**，
+    报 `NativeCommandError`，栈顶显示 `remote: Powered by GITEE.COM ...`。
+    - 原因：`git push` 把远程横幅写在 **stderr**，而 PowerShell 5.1 把原生命令往 stderr 写的
+      任何内容都包成 `ErrorRecord`；配合 `$ErrorActionPreference = "Stop"` 直接抛错终止。
+    - **危险点**：此时 **tag 其实已经推成功了**。v1.6.0 中断后核对发现
+      `gitee` 上 tag 已在、`origin` 上还没有（脚本先推 gitee、后推 origin），
+      `versionCode` 也已是 12 —— 如果此时按第 12 条「重跑」，就会把版本号再跳到 13。
+    - **修法（三选一）**：
+      1. 给 git 命令加 `--quiet`：`git push --quiet ... 2>&1`，无 stderr 输出即不触发；
+      2. 调用前后临时降级：`$ErrorActionPreference = 'Continue'` … 执行 … 再恢复 `'Stop'`；
+      3. 不要去管道 `2>&1`，改用 `$out = git push ... 2>&1; if ($LASTEXITCODE -ne 0) {...}`
+         以退出码判定成败（**最可靠**，也是本次手工接管时采用的方式）。
+    - **中断后第一件事是核对状态，而不是重跑**：
+      ```powershell
+      git log --oneline -2                                    # 版本号是否已升
+      git tag -l 'v1.6.0'                                     # 本地 tag 是否已建
+      git ls-remote --tags gitee refs/tags/vX.Y.Z             # 各远程推到哪一步
+      git ls-remote gitee refs/heads/main                     # main 是否已推（第7步才推）
+      ```
+      确认「已完成什么」后再从下一个未完成步骤手工继续。
+
+14. **PS 5.1 读 UTF-8 文件必须显式指定编码**（v1.6.0 实测）：
+    `Get-Content -Raw` 在中文 Windows 上按 **ANSI(GBK)** 解码，读 UTF-8 的 JSON/文本
+    会变乱码，进而让 `ConvertFrom-Json` 报 `传入的对象无效`。
+    - 读：`[System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)`
+    - 读网络响应：`[System.Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray())`
+    - 写：`[System.IO.File]::WriteAllText($p, $c, (New-Object System.Text.UTF8Encoding($false)))`
+    - 注意：**控制台把中文显示成乱码 ≠ 文件坏了**。v1.6.0 建 Gitee Release 时，
+      `Write-Output` 回显 `Get-Content` 的结果全是乱码，但用 `ReadAllText(...,UTF8)`
+      验证后确认 name/body 在服务端**完全正确**。判定数据是否正常要看**字节**，不要看控制台回显。
+    - `curl.exe` 用 `-o <文件>` 落盘后再用 UTF8 读回提取字段（如 release id），
+      不要用 `(& curl.exe ... | Out-String) | ConvertFrom-Json` 直接管道解析。
+
+
 # 工作方式
 
 - 用中文回复
