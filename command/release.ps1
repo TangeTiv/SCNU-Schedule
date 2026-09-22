@@ -64,6 +64,26 @@ function Info([string]$m) { Write-Host "[release] $m" -ForegroundColor Cyan }
 function Warn([string]$m) { Write-Host "[release] $m" -ForegroundColor Yellow }
 function Die([string]$m) { Write-Host "[release] $m" -ForegroundColor Red; exit 1 }
 
+# 推送单个 ref，并以**退出码**判定成败。
+#
+# 不要写成 `git push ... 2>&1 | Select-String ...`：
+# PS 5.1 会把原生命令往 stderr 写的任何内容包成 ErrorRecord，配合
+# $ErrorActionPreference = "Stop" 直接抛错终止 —— 而 `git push` 的远程横幅
+# （`remote: Powered by GITEE.COM ...`）正是写在 stderr 的，
+# 于是「推送其实已经成功」也会把脚本打断。v1.5.0 / v1.6.0 都栽在这里。
+#
+# 这里临时把 EAP 降级、只用退出码判成败，是 RELEASE_PROMPT 坑 #13 里
+# 标注「最可靠」的那种修法。
+function PushRef([string]$remote, [string]$ref) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $out = & git push $remote $ref 2>&1
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = $prev
+    $out | Select-String -Pattern 'error|fatal|rejected|up-to-date|new tag|->' | ForEach-Object { Write-Host "        $_" }
+    if ($code -ne 0) { Die "推送 $ref 到 $remote 失败（exit $code）" }
+}
+
 # ==================== 第 0 步：前置校验 ====================
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { Die "版本号格式应为 X.Y.Z（例如 1.4.2）" }
 $tag = "v$Version"
@@ -112,8 +132,8 @@ Info "已提升版本号并提交"
 git tag $tag 2>$null
 if (-not $SkipPush) {
     # 用显式 refs，避免与同名分支歧义（raw/<名字> 也会优先解析 tag）
-    git push $GiteeRemote "refs/tags/$tag" 2>&1 | Select-String -Pattern "$tag|error|fatal|rejected" | ForEach-Object { Write-Host "        $_" }
-    git push $GithubRemote "refs/tags/$tag" 2>&1 | Select-String -Pattern "$tag|error|fatal|rejected" | ForEach-Object { Write-Host "        $_" }
+    PushRef $GiteeRemote "refs/tags/$tag"
+    PushRef $GithubRemote "refs/tags/$tag"
 }
 Info "tag $tag 就绪"
 
@@ -258,8 +278,8 @@ Info "update.json 已生成并提交"
 
 # ==================== 第 7 步：推 main ====================
 if (-not $SkipPush) {
-    git push $GiteeRemote $MainBranch 2>&1 | Select-String -Pattern "$MainBranch ->|error|fatal|rejected" | ForEach-Object { Write-Host "        $_" }
-    git push $GithubRemote $MainBranch 2>&1 | Select-String -Pattern "$MainBranch ->|error|fatal|rejected|up-to-date" | ForEach-Object { Write-Host "        $_" }
+    PushRef $GiteeRemote $MainBranch
+    PushRef $GithubRemote $MainBranch
     Info "main 已推送（App 从 Gitee $MainBranch 读清单）"
 } else { Warn "已跳过推送（-SkipPush）" }
 
