@@ -1,11 +1,10 @@
 package com.xingheyuzhuan.shiguangschedule.ui.campus
 
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xingheyuzhuan.shiguangschedule.data.auth.AuthStateRepository
+import com.xingheyuzhuan.shiguangschedule.data.auth.ScnuAuthManager
+import com.xingheyuzhuan.shiguangschedule.data.auth.SessionResult
 import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseTable
@@ -36,7 +35,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 import javax.inject.Inject
-import javax.inject.Named
 import kotlin.random.Random
 
 /**
@@ -68,8 +66,15 @@ sealed interface SyncUiState {
  * 负责将 [ScnuScraper]（网络）与 [GradeDao]/[ExamDao]（本地数据库）串联，
  * 暴露 [syncUiState] 供 UI 层驱动全屏 Loading 遮罩和 Toast 反馈。
  *
- * 账号（学号）会在登录成功后自动持久化到 DataStore，下次打开页面时预填；
- * 密码出于安全考虑**绝不**落盘存储。
+ * ## v1.7.0：不再接收明文凭据
+ *
+ * 改造前本类接收 `account` / `password` 并自行登录、自行把学号写进
+ * DataStore（与 `CourseSelectionViewModel` 重复写同一个键）。
+ *
+ * 现在改为：
+ * - 凭据由 [ScnuAuthManager] 统一管理，本类只调用 [ScnuAuthManager.ensureSession]
+ * - 学号不再由本类持久化 —— 写入收敛到 `CredentialStore` 一处
+ * - UI 只读 [maskedAccount]（脱敏），完整学号不经过 UI
  */
 @HiltViewModel
 class CampusSyncViewModel @Inject constructor(
@@ -78,7 +83,8 @@ class CampusSyncViewModel @Inject constructor(
     private val gradeDao: GradeDao,
     private val examDao: ExamDao,
     private val academicDao: AcademicDao,
-    @Named("AppSettings") private val dataStore: DataStore<Preferences>,
+    private val authManager: ScnuAuthManager,
+    private val authState: AuthStateRepository,
     // ── 课程表同步所需依赖 ──
     private val courseDao: CourseDao,
     private val courseWeekDao: CourseWeekDao,
@@ -87,33 +93,53 @@ class CampusSyncViewModel @Inject constructor(
     private val styleSettingsRepository: StyleSettingsRepository
 ) : ViewModel() {
 
-    companion object {
-        /**
-         * DataStore 键：上一次成功登录的学号。
-         *
-         * 由教务同步（本类）写入，被选课模块读取以预填账号 ——
-         * 两侧必须使用同一个 [androidx.datastore.preferences.core.Preferences.Key]，
-         * 故此处公开为常量，避免各模块重复声明字符串。
-         */
-        val KEY_CAMPUS_ACCOUNT = stringPreferencesKey("campus_account")
-    }
-
     // ── 同步状态 ──
 
     private val _syncUiState = MutableStateFlow<SyncUiState>(SyncUiState.Idle)
     val syncUiState: StateFlow<SyncUiState> = _syncUiState.asStateFlow()
 
-    // ── 持久化的学号（用于预填） ──
+    // ── 登录凭据状态 ──
 
-    private val _savedAccount = MutableStateFlow("")
-    val savedAccount: StateFlow<String> = _savedAccount.asStateFlow()
+    /**
+     * 最近一次会话检查结果；`null` 表示尚未检查。
+     *
+     * UI 直接按 [SessionResult] 的分支决定显示什么：能同步 / 要验证身份 /
+     * 要去账号页 / 冷却中。不再由 UI 猜"为什么不能同步"。
+     */
+    private val _authSession = MutableStateFlow<SessionResult?>(null)
+    val authSession: StateFlow<SessionResult?> = _authSession.asStateFlow()
 
-    init {
-        // 异步从 DataStore 加载上一次成功登录的学号，绝不阻塞主线程
+    /** 脱敏学号，供页面显示"当前账号" */
+    val maskedAccount: StateFlow<String?> = authState.maskedAccount
+
+    /**
+     * 检查会话状态。
+     *
+     * 由页面进入时调用一次。**不会弹生物识别** —— 需要验证身份时返回
+     * [SessionResult.NeedsUnlock]，由 UI 决定何时弹窗（见 `SyncSelectionScreen`）。
+     */
+    fun refreshAuthSession() {
         viewModelScope.launch(Dispatchers.IO) {
-            val prefs = dataStore.data.first()
-            _savedAccount.value = prefs[KEY_CAMPUS_ACCOUNT] ?: ""
+            _authSession.value = authManager.ensureSession()
         }
+    }
+
+    /**
+     * 生成解密密码用的 cipher，交给 UI 弹生物识别。
+     *
+     * @return null 表示密钥已作废（用户换了指纹），此时应引导去账号页重输密码
+     */
+    suspend fun createUnlockCipher(): javax.crypto.Cipher? = authManager.createUnlockCipher()
+
+    /**
+     * 生物识别通过后完成解锁并重登。
+     *
+     * @return 解锁后的会话状态
+     */
+    suspend fun completeUnlock(authenticatedCipher: javax.crypto.Cipher): SessionResult {
+        val result = authManager.completeUnlock(authenticatedCipher)
+        _authSession.value = result
+        return result
     }
 
     /**
@@ -122,16 +148,15 @@ class CampusSyncViewModel @Inject constructor(
      * 整个流程在 [Dispatchers.IO] 中执行，通过 [runCatching] 统一捕获异常，
      * 并通过 [_syncUiState] 实时反馈进度。
      *
-     * @param account     学号
-     * @param password    密码（仅用于本次登录，不持久化）
+     * 凭据不再由本方法接收：会话必须**已经**通过 [ScnuAuthManager] 建立，
+     * 否则本方法会拒绝执行并把原因写进 [authSession]（不谎报成功）。
+     *
      * @param syncCourses 是否需要同步学期课程表
      * @param syncGrades  是否需要同步成绩数据
      * @param syncExams   是否需要同步考试安排
      * @param syncAcademic 是否需要同步学业情况（培养计划 + 学分完成度 + 非正式学时）
      */
     fun startSync(
-        account: String,
-        password: String,
         syncCourses: Boolean,
         syncGrades: Boolean,
         syncExams: Boolean,
@@ -139,17 +164,17 @@ class CampusSyncViewModel @Inject constructor(
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
-                // ── 第 1 步：登录统一身份认证 ──
-                _syncUiState.value = SyncUiState.Loading("正在登录统一身份认证…")
-                scraper.login(account, password)
-
-                // 登录成功 → 持久化学号，下次打开页面时自动预填
-                dataStore.edit { prefs ->
-                    prefs[KEY_CAMPUS_ACCOUNT] = account
+                // ── 第 0 步：确认会话可用（凭据缺失/失效一律拒绝执行）──
+                val session = authManager.ensureSession()
+                _authSession.value = session
+                if (session !is SessionResult.Active) {
+                    // 不静默返回：按钮点下去毫无反应会被当成卡死。
+                    // 弹一条明确提示，同时状态卡片也会刷新成"需要验证身份 / 去账号页"。
+                    _syncUiState.value = SyncUiState.Error("登录状态已变化，请按上方提示处理后再试")
+                    return@launch
                 }
-                _savedAccount.value = account
 
-                // ── 第 2 步：抓取并写入学期课程表 ──
+                // ── 第 1 步：抓取并写入学期课程表 ──
                 if (syncCourses) {
                     _syncUiState.value = SyncUiState.Loading("正在拉取学期课程表…")
 
@@ -201,7 +226,7 @@ class CampusSyncViewModel @Inject constructor(
                     }
                 }
 
-                // ── 第 3 步：抓取并写入成绩数据 ──
+                // ── 第 2 步：抓取并写入成绩数据 ──
                 if (syncGrades) {
                     _syncUiState.value = SyncUiState.Loading("正在抓取成绩数据…")
                     val gradeItems = scraper.fetchGrades()
@@ -209,7 +234,7 @@ class CampusSyncViewModel @Inject constructor(
                     gradeDao.replaceAll(gradeEntities)
                 }
 
-                // ── 第 4 步：抓取并写入考试安排 ──
+                // ── 第 3 步：抓取并写入考试安排 ──
                 if (syncExams) {
                     _syncUiState.value = SyncUiState.Loading("正在抓取考试安排…")
                     val examItems = scraper.fetchExams()
@@ -255,10 +280,10 @@ class CampusSyncViewModel @Inject constructor(
                     }
                 }
 
-                // ── 第 5 步：抓取并写入学业情况（培养计划 + 非正式学时）──
+                // ── 第 4 步：抓取并写入学业情况（培养计划 + 非正式学时）──
                 var academicFailureCount = 0
                 if (syncAcademic) {
-                    academicFailureCount = syncAcademicData(account)
+                    academicFailureCount = syncAcademicData()
                 }
 
                 // ── 全部完成 ──
@@ -295,7 +320,12 @@ class CampusSyncViewModel @Inject constructor(
      * DAO 的 `replaceXxx` 对空列表是 no-op，因此一次失败的同步
      * 不会把用户上次成功的学业数据抹掉。
      */
-    private suspend fun syncAcademicData(account: String): Int {
+    private suspend fun syncAcademicData(): Int {
+        // 学业情况的接口需要学号作为参数。会话此刻必然可用（[startSync] 已前置校验），
+        // 因此 currentAccount() 拿不到值属于不该发生的状态，直接如实报错而不是硬编码。
+        val account = authManager.currentAccount()
+            ?: throw IllegalStateException("无法读取学号，请到「我的 → 账号」重新设置凭据")
+
         var failureCount = 0
 
         // ── 5a. 培养计划树 + 各计划点课程 ──

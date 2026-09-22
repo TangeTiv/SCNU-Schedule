@@ -143,6 +143,9 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
     implementation(libs.javax.inject)
     implementation(libs.androidx.appcompat)
+    // 教务凭据（Keystore + AES-GCM 密文）的生物识别解锁。
+    // 只用来弹 BiometricPrompt + 承载 CryptoObject；加解密本身是平台 API，不需要额外依赖。
+    implementation(libs.androidx.biometric)
     implementation(libs.hilt.android)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.hilt.work)

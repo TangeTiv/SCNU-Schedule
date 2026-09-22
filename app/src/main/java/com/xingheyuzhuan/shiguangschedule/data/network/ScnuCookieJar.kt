@@ -43,4 +43,17 @@ class ScnuCookieJar : CookieJar {
     fun clear() {
         store.clear()
     }
+
+    /**
+     * 某个 host 下是否还持有**未过期**的 Cookie。
+     *
+     * 供登录流程做"会话是否真的建立"的最终校验使用 ——
+     * SSO 的 302 只说明凭据正确，不代表教务系统已经认可了这个会话。
+     * 教务域名（`jwxt.scnu.edu.cn`）上出现 Cookie，才是会话落地的直接证据。
+     */
+    fun hasValidCookiesFor(host: String): Boolean {
+        val cookies = store[host] ?: return false
+        val now = System.currentTimeMillis()
+        return cookies.any { it.expiresAt > now }
+    }
 }

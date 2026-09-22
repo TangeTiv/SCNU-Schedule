@@ -333,6 +333,16 @@ private fun AdvancedSettingsSection(onNavigate: (Destination) -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
+
+            // 账号入口（教务登录凭据管理）。
+            // 全 App 唯一的"输入学号密码"的地方 —— 教务同步 / 选课 / 成绩 / 考试 /
+            // 学业情况都读这里保存的凭据，无凭据时统一引导到本页。
+            SettingItem(
+                title = stringResource(R.string.item_account),
+                subtitle = stringResource(R.string.desc_account),
+                onClick = { onNavigate(Destination.Account) }
+            )
+
             // 课表导入/导出设置项
             SettingItem(
                 title = stringResource(R.string.item_course_conversion),

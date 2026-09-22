@@ -132,7 +132,7 @@ fun CourseSelectionScreen(
     val roundInfo by viewModel.roundInfo.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
-    val savedAccount by viewModel.savedAccount.collectAsStateWithLifecycle()
+    val maskedAccount by viewModel.maskedAccount.collectAsStateWithLifecycle()
     val courses by viewModel.currentCourses.collectAsStateWithLifecycle()
     val displayedCourses by viewModel.displayedCourses.collectAsStateWithLifecycle()
     val enrolledCourses by viewModel.enrolledCourses.collectAsStateWithLifecycle()
@@ -222,11 +222,14 @@ fun CourseSelectionScreen(
         if (!uiState.isLoggedIn) {
             LoginPane(
                 modifier = Modifier.padding(innerPadding),
-                savedAccount = savedAccount,
+                maskedAccount = maskedAccount,
                 isLoggingIn = uiState.isLoggingIn,
                 sessionExpired = uiState.sessionExpired,
                 onLogin = { account, password -> viewModel.login(account, password) },
-                onReLogin = { account, password -> viewModel.reLogin(account, password) }
+                onReLogin = { account, password -> viewModel.reLogin(account, password) },
+                onLoginWithSavedAccount = { password -> viewModel.loginWithSavedAccount(password) },
+                onReLoginWithSavedAccount = { password -> viewModel.reLoginWithSavedAccount(password) },
+                onGoToAccount = { onNavigate(Destination.Account) }
             )
         } else {
             CourseBrowserPane(
@@ -295,30 +298,36 @@ internal data class PendingClassSheet(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * 登录卡片。
+ * 登录卡片（会话中途失效时的原地重登）。
  *
- * - 学号：从 DataStore 的 `campus_account` **预填**（与教务同步共用）
- * - 密码：**不预填、不落盘**，每次进入模块都需重新输入
+ * ## v1.7.0 起的行为
+ *
+ * - 已保存过凭据 → **只显示密码框**，学号以脱敏形式呈现（`为 2024****41 重新登录`）
+ * - 从未保存过 → 显示完整表单，并提供去【我的 → 账号】的入口
+ * - 密码仍然**不预填、不落盘**，只在本次会话的内存里短暂存在
  *
  * [sessionExpired] 为 true 时使用 [onReLogin]（区分语义：会话过期而非首次登录）。
  */
 @Composable
 private fun LoginPane(
     modifier: Modifier = Modifier,
-    savedAccount: String,
+    maskedAccount: String?,
     isLoggingIn: Boolean,
     sessionExpired: Boolean,
     onLogin: (String, String) -> Unit,
-    onReLogin: (String, String) -> Unit
+    onReLogin: (String, String) -> Unit,
+    onLoginWithSavedAccount: (String) -> Unit,
+    onReLoginWithSavedAccount: (String) -> Unit,
+    onGoToAccount: () -> Unit
 ) {
     var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
-    // 账号预填（仅在用户尚未输入时填充，避免覆盖正在编辑的内容）
-    LaunchedEffect(savedAccount) {
-        if (account.isEmpty() && savedAccount.isNotEmpty()) account = savedAccount
-    }
+    // 收敛成非空局部量：既让 `useSavedAccount` 与展示文案同源，
+    // 也避免 `useSavedAccount && maskedAccount != null` 这种"条件恒为真"的写法。
+    val savedAccountText: String? = maskedAccount?.takeIf { it.isNotBlank() }
+    val useSavedAccount = savedAccountText != null
 
     Box(
         modifier = modifier
@@ -382,6 +391,19 @@ private fun LoginPane(
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
+                    if (savedAccountText != null) {
+                        Text(
+                            text = stringResource(
+                                R.string.campus_course_selection_login_for_account,
+                                savedAccountText
+                            ),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 10.dp)
+                        )
+                    }
+
                     AccountPasswordFields(
                         account = account,
                         onAccountChange = { account = it },
@@ -389,20 +411,25 @@ private fun LoginPane(
                         onPasswordChange = { password = it },
                         passwordVisible = passwordVisible,
                         onTogglePasswordVisible = { passwordVisible = !passwordVisible },
-                        enabled = !isLoggingIn
+                        enabled = !isLoggingIn,
+                        showAccountField = !useSavedAccount
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
-                            if (sessionExpired) {
-                                onReLogin(account.trim(), password)
-                            } else {
-                                onLogin(account.trim(), password)
+                            when {
+                                // 会话中途失效且已保存学号 → 走"原地重登"（保留已加载列表）
+                                sessionExpired && useSavedAccount ->
+                                    onReLoginWithSavedAccount(password)
+                                useSavedAccount -> onLoginWithSavedAccount(password)
+                                sessionExpired -> onReLogin(account.trim(), password)
+                                else -> onLogin(account.trim(), password)
                             }
                         },
-                        enabled = !isLoggingIn && account.isNotBlank() && password.isNotBlank(),
+                        enabled = !isLoggingIn && password.isNotBlank() &&
+                                (useSavedAccount || account.isNotBlank()),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),
@@ -431,6 +458,16 @@ private fun LoginPane(
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (!useSavedAccount) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        TextButton(onClick = onGoToAccount, enabled = !isLoggingIn) {
+                            Text(
+                                text = stringResource(R.string.campus_course_selection_go_account),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -451,20 +488,29 @@ internal fun AccountPasswordFields(
     onPasswordChange: (String) -> Unit,
     passwordVisible: Boolean,
     onTogglePasswordVisible: () -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
+    /**
+     * 是否显示学号输入框。
+     *
+     * 已保存过凭据时置 false —— 学号由凭据仓库提供（只以脱敏形式展示），
+     * 用户只需补密码即可，不必重新输一遍学号。
+     */
+    showAccountField: Boolean = true
 ) {
-    OutlinedTextField(
-        value = account,
-        onValueChange = onAccountChange,
-        label = { Text(stringResource(R.string.campus_sync_account_label)) },
-        placeholder = { Text(stringResource(R.string.campus_sync_account_placeholder)) },
-        singleLine = true,
-        enabled = enabled,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth()
-    )
+    if (showAccountField) {
+        OutlinedTextField(
+            value = account,
+            onValueChange = onAccountChange,
+            label = { Text(stringResource(R.string.campus_sync_account_label)) },
+            placeholder = { Text(stringResource(R.string.campus_sync_account_placeholder)) },
+            singleLine = true,
+            enabled = enabled,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
 
-    Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+    }
 
     OutlinedTextField(
         value = password,

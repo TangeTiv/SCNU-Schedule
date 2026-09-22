@@ -1,10 +1,10 @@
 package com.xingheyuzhuan.shiguangschedule.ui.campus
 
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xingheyuzhuan.shiguangschedule.data.auth.AuthStateRepository
+import com.xingheyuzhuan.shiguangschedule.data.auth.ScnuAuthManager
+import com.xingheyuzhuan.shiguangschedule.data.auth.SessionResult
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuCookieJar
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.CourseCategory
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.CourseClass
@@ -12,7 +12,6 @@ import com.xingheyuzhuan.shiguangschedule.data.network.selection.CourseSelection
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.EnrolledCourse
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.ScnuCourseSelector
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.ScnuLoginException
-import com.xingheyuzhuan.shiguangschedule.data.network.selection.ScnuSsoLogin
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectableCourse
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectionOutcome
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectionRoundInfo
@@ -27,13 +26,13 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.CookieJar
 import java.io.IOException
+import javax.crypto.Cipher
 import javax.inject.Inject
 import javax.inject.Named
 
@@ -128,12 +127,44 @@ data class SelectionFeedback(
 )
 
 /**
+ * 【校园】页选课对话框的登录状态。
+ *
+ * 对话框打开时会先尝试用**已保存凭据**恢复会话（多数情况下用户什么都看不到就进去了）。
+ * 只有在确实需要用户介入时，才呈现出对应的引导。
+ */
+/** 已保存凭据时却读不到学号（密钥被作废）时的提示文案。 */
+private const val NO_SAVED_ACCOUNT_MESSAGE =
+    "本机没有可用的已保存学号，请到「我的 → 账号」重新设置"
+
+sealed interface CampusLoginState {
+
+    /** 正在检查会话 */
+    data object Checking : CampusLoginState
+
+    /** 会话已就绪，对话框应立即关闭并导航进选课页 */
+    data object Ready : CampusLoginState
+
+    /** 有已保存密码，需要生物识别解锁 */
+    data object NeedsUnlock : CampusLoginState
+
+    /** 没有可用凭据，需要用户手动输入（或先去账号页设置） */
+    data object NeedsCredential : CampusLoginState
+
+    /** 连续失败冷却中 */
+    data class Locked(val remainingSeconds: Long) : CampusLoginState
+
+    /** 自动登录失败（凭据被教务拒绝 / 网络异常） */
+    data class Failed(val message: String) : CampusLoginState
+}
+
+/**
  * 选课模块 ViewModel。
  *
  * ## 核心约束（逐条对应设计决策）
  *
  * 1. **临时沙盒**：所有数据仅存内存，退出模块即清空（见 [clearSession]）
- * 2. **凭证不落盘**：账号从 DataStore 读 `campus_account` 预填，密码仅存活于内存
+ * 2. **凭证由账号页统一管理**（v1.7.0 起）：本类不再读写 DataStore，
+ *    也不再持有密码；凭据一律经 [ScnuAuthManager]。UI 只拿到脱敏学号。
  * 3. **按类别懒加载**：进入后只拉当前类别首批，滑到底续拉（见 [loadNextBatch]）
  * 4. **超时 ≠ 失败**：网络异常时查权威已选清单判断真实结果（见 [submitSelection]）
  * 5. **会话失效保留列表**：只置 [CourseSelectionUiState.sessionExpired]，不清数据
@@ -143,7 +174,10 @@ data class SelectionFeedback(
 @HiltViewModel
 class CourseSelectionViewModel @Inject constructor(
     private val selector: ScnuCourseSelector,
-    private val ssoLogin: ScnuSsoLogin,
+    /** 教务会话与凭据的唯一编排者 */
+    private val authManager: ScnuAuthManager,
+    /** 用于读脱敏学号（UI 展示）与生物识别可用性 */
+    private val authState: AuthStateRepository,
     /**
      * 共享的 SCNU CookieJar。
      *
@@ -151,8 +185,7 @@ class CourseSelectionViewModel @Inject constructor(
      * `@Named("scnu") CookieJar` 这一种绑定；退出模块时需下调为
      * [ScnuCookieJar] 以调用其 `clear()`。
      */
-    @Named("scnu") private val cookieJar: CookieJar,
-    @Named("AppSettings") private val dataStore: DataStore<Preferences>
+    @Named("scnu") private val cookieJar: CookieJar
 ) : ViewModel() {
 
     // ── 顶层状态 ──
@@ -169,9 +202,25 @@ class CourseSelectionViewModel @Inject constructor(
     private val _selectedCategory = MutableStateFlow<CourseCategory?>(null)
     val selectedCategory: StateFlow<CourseCategory?> = _selectedCategory.asStateFlow()
 
-    /** 账号预填值（来自 DataStore 的 `campus_account`） */
-    private val _savedAccount = MutableStateFlow("")
-    val savedAccount: StateFlow<String> = _savedAccount.asStateFlow()
+    /**
+     * 脱敏学号，供 UI 显示"当前账号"。
+     *
+     * v1.7.0 起不再有 `savedAccount`（完整学号）暴露给 UI ——
+     * 完整学号只在 [ScnuAuthManager] 内部流转。
+     */
+    val maskedAccount: StateFlow<String?> = authState.maskedAccount
+
+    /**
+     * 【校园】页选课对话框的登录状态。
+     *
+     * 让对话框能分别呈现"正在用已保存凭据登录 / 需要验证身份 / 没有凭据"，
+     * 而不是永远甩一个手输表单出来。
+     */
+    private val _campusLoginState = MutableStateFlow<CampusLoginState>(CampusLoginState.Checking)
+    val campusLoginState: StateFlow<CampusLoginState> = _campusLoginState.asStateFlow()
+
+    /** 校园页对话框的会话检查任务；新检查会取消旧任务 */
+    private var campusLoginCheckJob: Job? = null
 
     /**
      * 按类别缓存的课程列表。
@@ -317,11 +366,9 @@ class CourseSelectionViewModel @Inject constructor(
     )
 
     init {
-        // 异步读取上次成功登录的学号用于预填；密码绝不读取（从未落盘）
-        viewModelScope.launch(Dispatchers.IO) {
-            val prefs = dataStore.data.first()
-            _savedAccount.value = prefs[CampusSyncViewModel.KEY_CAMPUS_ACCOUNT] ?: ""
-        }
+        // v1.7.0 起本类**不再读写 DataStore**：
+        // 学号（脱敏）由 AuthStateRepository 提供，密码由 ScnuAuthManager 管理。
+        // 原先此处与 CampusSyncViewModel 重复读同一个 `campus_account` 键，现已收敛。
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -329,19 +376,115 @@ class CourseSelectionViewModel @Inject constructor(
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * 登录并建立选课会话。
+     * 【校园】页选课对话框专用：先尝试用**已保存凭据**恢复会话。
      *
-     * 登录成功后立即调用 [refreshContext] 抓取选课页上下文 ——
-     * 这既是"数据落地"的起点，也是会话有效性的唯一真实校验。
+     * 结果写入 [campusLoginState]，由对话框决定：
+     * - [CampusLoginState.Ready] → 直接关闭对话框并导航（用户无感）
+     * - [CampusLoginState.NeedsUnlock] → 显示"验证身份"按钮
+     * - [CampusLoginState.NeedsCredential] → 显示手输表单 + "去账号页"
      *
-     * ## 为什么不再自动加载课程
+     * ## 为什么不做"每次都弹指纹"
      *
-     * 登录入口现在位于【校园】页的对话框（见 `CourseSelectionLoginDialog`），
-     * 对话框成功关闭后才会导航进选课页。若在此处自动拉取，会在用户还没进入
-     * 页面时就开始网络请求。改为由选课页进入后自行触发
-     * （见 [ensureInitialLoad]）。
+     * [ScnuAuthManager.ensureSession] 在 15 分钟解锁缓存仍然有效时直接返回
+     * `Active`，不碰 Keystore、不弹窗 —— 这正是方案文档 §4.3 的折中。
+     */
+    fun prepareCampusLogin() {
+        // 后发起的检查取代前一次，避免对话框重建时两次检查互相覆盖状态
+        campusLoginCheckJob?.cancel()
+        _campusLoginState.value = CampusLoginState.Checking
+        campusLoginCheckJob = viewModelScope.launch {
+            // 已有活跃会话 → 直接放行（对应原来的 hasActiveSession 快路径）
+            if (_uiState.value.sessionActive) {
+                _campusLoginState.value = CampusLoginState.Ready
+                return@launch
+            }
+            _campusLoginState.value = when (val result = authManager.ensureSession()) {
+                is SessionResult.Active -> {
+                    onSessionEstablished()
+                    CampusLoginState.Ready
+                }
+                is SessionResult.NeedsUnlock -> CampusLoginState.NeedsUnlock
+                is SessionResult.NeedsPassword,
+                is SessionResult.Expired -> CampusLoginState.NeedsCredential
+                is SessionResult.Locked -> CampusLoginState.Locked(result.remainingSeconds)
+                is SessionResult.Failed -> CampusLoginState.Failed(result.message)
+            }
+        }
+    }
+
+    /** 生成解锁用的 cipher，交给对话框弹生物识别。 */
+    suspend fun createUnlockCipher(): Cipher? = authManager.createUnlockCipher()
+
+    /** 生物识别通过后完成解锁并重登。 */
+    fun unlockCampusLogin(authenticatedCipher: Cipher) {
+        viewModelScope.launch {
+            _campusLoginState.value = CampusLoginState.Checking
+            _campusLoginState.value = when (val result = authManager.completeUnlock(authenticatedCipher)) {
+                is SessionResult.Active -> {
+                    onSessionEstablished()
+                    CampusLoginState.Ready
+                }
+                is SessionResult.NeedsPassword ->
+                    CampusLoginState.NeedsCredential
+                is SessionResult.Locked ->
+                    CampusLoginState.Locked(result.remainingSeconds)
+                is SessionResult.Failed ->
+                    CampusLoginState.Failed(result.message)
+                else -> CampusLoginState.NeedsCredential
+            }
+        }
+    }
+
+    /** 对话框被关闭时复位状态，避免下次打开还留着上次的结论。 */
+    fun resetCampusLoginState() {
+        _campusLoginState.value = CampusLoginState.Checking
+    }
+
+    /**
+     * 用**已保存的学号** + 用户本次输入的密码登录。
      *
-     * @param onSuccess 登录成功的回调（在主线程执行），供对话框决定是否关闭并导航
+     * 学号密钥不要求生物识别，所以 [ScnuAuthManager.currentAccount] 随时可读，
+     * 用户不必重新输一遍学号；UI 上也只以脱敏形式呈现。
+     */
+    fun loginWithSavedAccount(
+        password: String,
+        onSuccess: (() -> Unit)? = null,
+        onError: ((String) -> Unit)? = null
+    ) {
+        viewModelScope.launch {
+            val account = authManager.currentAccount()
+            if (account.isNullOrBlank()) {
+                onError?.invoke(NO_SAVED_ACCOUNT_MESSAGE)
+                    ?: run {
+                        _uiState.value = _uiState.value.copy(errorMessage = NO_SAVED_ACCOUNT_MESSAGE)
+                    }
+                return@launch
+            }
+            login(account, password, onSuccess = onSuccess, onError = onError)
+        }
+    }
+
+    /**
+     * [loginWithSavedAccount] 的"原地重登"版本：**保留已加载的课程列表**，
+     * 成功后重试因会话失效而中断的选课。
+     */
+    fun reLoginWithSavedAccount(password: String) {
+        viewModelScope.launch {
+            val account = authManager.currentAccount()
+            if (account.isNullOrBlank()) {
+                _uiState.value = _uiState.value.copy(errorMessage = NO_SAVED_ACCOUNT_MESSAGE)
+                return@launch
+            }
+            reLogin(account, password)
+        }
+    }
+
+    /**
+     * 手动登录（对话框手输 / 选课页原地重登共用）。
+     *
+     * 凭据经 [ScnuAuthManager]，**本类不再接触 DataStore**。
+     *
+     * @param onSuccess 登录成功的回调（在主线程执行）
      * @param onError 失败信息的回调（在主线程执行）；为 null 时走 [CourseSelectionUiState.errorMessage]
      */
     fun login(
@@ -364,28 +507,18 @@ class CourseSelectionViewModel @Inject constructor(
                 errorMessage = null,
                 sessionExpired = false
             )
-            runCatching {
+            val passwordChars = password.toCharArray()
+            val result = try {
                 withContext(Dispatchers.IO) {
-                    ssoLogin.login(trimmedAccount, password)
-                    // 抓取上下文 = 验证会话真的可用（对应脚本 _refresh_context）
-                    selector.refreshContext()
+                    authManager.login(trimmedAccount, passwordChars)
+                        .mapCatching { selector.refreshContext() }
                 }
-                // 记下账号供下次预填（仅账号，不存密码）
-                withContext(Dispatchers.IO) {
-                    dataStore.edit { it[CampusSyncViewModel.KEY_CAMPUS_ACCOUNT] = trimmedAccount }
-                }
-                _savedAccount.value = trimmedAccount
-            }.onSuccess {
-                val info = withContext(Dispatchers.IO) { selector.roundInfo() }
-                _roundInfo.value = info
-                _categories.value = selector.categories
-                _uiState.value = _uiState.value.copy(
-                    isLoggingIn = false,
-                    isLoggedIn = true,
-                    sessionActive = true
-                )
-                // 已选清单是过滤已选课程的依据，登录后立即拉一次
-                refreshEnrolled(silent = true)
+            } finally {
+                passwordChars.fill('\u0000')
+            }
+
+            result.onSuccess {
+                onSessionEstablished()
                 onSuccess?.invoke()
             }.onFailure { e ->
                 val message = e.friendlyMessage()
@@ -393,27 +526,6 @@ class CourseSelectionViewModel @Inject constructor(
                 onError?.invoke(message)
             }
         }
-    }
-
-    /**
-     * 【校园】页登录对话框专用的登录入口。
-     *
-     * 与 [login] 的唯一差别：**先清掉 [CourseSelectionUiState.sessionExpired]**。
-     *
-     * 该字段专表"浏览中途会话失效"，若带着它进校园页弹窗，弹窗会显示
-     * "登录状态已失效，请重新输入密码" —— 而用户只是正常点击卡片准备登录，
-     * 措辞具有误导性。
-     *
-     * 顺带保证：无论上一次退出模块时留下什么状态，从这里进入的登录都是干净的。
-     */
-    fun loginFromCampusDialog(
-        account: String,
-        password: String,
-        onSuccess: () -> Unit,
-        onError: (String) -> Unit
-    ) {
-        _uiState.value = _uiState.value.copy(sessionExpired = false)
-        login(account, password, onSuccess = onSuccess, onError = onError)
     }
 
     /**
@@ -443,12 +555,17 @@ class CourseSelectionViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoggingIn = true, errorMessage = null)
-            runCatching {
+            val passwordChars = password.toCharArray()
+            val result = try {
                 withContext(Dispatchers.IO) {
-                    ssoLogin.login(trimmedAccount, password)
-                    selector.refreshContext()
+                    authManager.login(trimmedAccount, passwordChars)
+                        .mapCatching { selector.refreshContext() }
                 }
-            }.onSuccess {
+            } finally {
+                passwordChars.fill('\u0000')
+            }
+
+            result.onSuccess {
                 val info = withContext(Dispatchers.IO) { selector.roundInfo() }
                 _roundInfo.value = info
                 _categories.value = selector.categories
@@ -477,6 +594,26 @@ class CourseSelectionViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * 会话建立后的统一收尾。
+     *
+     * 把"登录成功之后要做什么"收敛成一处，避免 [login] / [prepareCampusLogin] /
+     * [unlockCampusLogin] 三条路径各写一遍导致行为发散。
+     */
+    private suspend fun onSessionEstablished() {
+        val info = withContext(Dispatchers.IO) { selector.roundInfo() }
+        _roundInfo.value = info
+        _categories.value = selector.categories
+        _uiState.value = _uiState.value.copy(
+            isLoggingIn = false,
+            isLoggedIn = true,
+            sessionExpired = false,
+            sessionActive = true
+        )
+        // 已选清单是过滤已选课程的依据，登录后立即拉一次
+        refreshEnrolled(silent = true)
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -998,6 +1135,11 @@ class CourseSelectionViewModel @Inject constructor(
      * `ScnuCookieJar` 是单例，且选课与教务同步共用同一套 SSO 凭据。
      * 若只清课程数据不清会话，用户**再次进入模块时会跳过登录**
      * —— 与"密码需要重新输入"的设计意图相反。
+     *
+     * > v1.7.0 补充：清会话**不等于**清凭据。用户下次进入时
+     * > [prepareCampusLogin] 会用已保存凭据自动恢复会话（15 分钟内连指纹都不弹），
+     * > 所以"清 CookieJar"现在只影响当次会话，不会再让用户重输密码。
+     * > 凭据的清除只发生在【我的 → 账号】页。
      *
      * ## 为什么默认不清 [CourseSelectionUiState.isLoggedIn]
      *

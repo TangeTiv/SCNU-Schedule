@@ -38,7 +38,9 @@ fun ScnuVerificationScreen(
     val viewModel: ScnuVerificationViewModel = hiltViewModel()
     val scope = rememberCoroutineScope()
 
-    var account by remember { mutableStateOf("202421315041") }
+    // 刻意留空：调试页原先硬编码了开发者本人的真实学号，
+    // 源码会随仓库分发，学号不该出现在里面。
+    var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isLoggedIn by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
@@ -106,8 +108,13 @@ fun ScnuVerificationScreen(
                             isLoading = true
                             addLog("══════ SSO 登录 ══════")
                             try {
-                                withContext(Dispatchers.IO) {
-                                    viewModel.scraper.login(account, password)
+                                val passwordChars = password.toCharArray()
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        viewModel.authManager.login(account.trim(), passwordChars)
+                                    }.getOrThrow()
+                                } finally {
+                                    passwordChars.fill('\u0000')
                                 }
                                 addLog("✅ 登录成功 — Session 已建立")
                                 isLoggedIn = true

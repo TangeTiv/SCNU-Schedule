@@ -668,4 +668,89 @@
     <string name="campus_course_selection_no_classes">該課程目前沒有可選教學班（可能已選或未開放）</string>
     <string name="campus_course_selection_classes_failed">教學班詳情取得失敗，請返回重試</string>
 
+
+    <!-- ═══ v1.7.0 账号模块 ═══ -->
+    <string name="item_account">帳號</string>
+    <string name="desc_account">管理教務登入憑證與登入狀態</string>
+    <string name="account_title">帳號</string>
+    <string name="account_section_credential">登入憑證</string>
+    <string name="account_section_notice">提示</string>
+    <string name="account_section_danger">安全性與清除</string>
+    <string name="account_label_login_state">登入狀態</string>
+    <string name="account_status_logged_in">已登入</string>
+    <string name="account_status_not_logged_in">未登入</string>
+    <string name="account_status_locked_countdown">登入已鎖定，請 %1$d 秒後重試</string>
+    <string name="account_label_student_id">學號</string>
+    <string name="account_label_student_id_unset">未設定</string>
+    <string name="account_label_credential">憑據</string>
+    <string name="account_label_credential_expired">憑證已過期</string>
+    <string name="account_label_credential_password_saved">密碼已加密儲存</string>
+    <string name="account_label_credential_account_only">僅記住了學號</string>
+    <string name="account_label_credential_none">未儲存憑證</string>
+    <string name="account_field_student_id">學號</string>
+    <string name="account_field_student_id_placeholder">請輸入學號</string>
+    <string name="account_field_password">密碼</string>
+    <string name="account_field_password_placeholder">請輸入密碼</string>
+    <string name="account_action_login">登入</string>
+    <string name="account_action_login_for_account">為 %1$s 重新輸入密碼並登入</string>
+    <string name="account_action_login_with_saved">使用已儲存的憑證登入</string>
+    <string name="account_action_logging_in">正在登入…</string>
+    <string name="account_action_logout">登出</string>
+    <string name="account_action_clear_credential">清除已儲存的憑證</string>
+    <string name="account_hint_relogin">如果教務密碼已經修改，請重新輸入密碼後登入。</string>
+    <string name="account_confirm_clear_title">清除已儲存的憑證</string>
+    <string name="account_confirm_clear_message">將刪除本機儲存的學號與密碼密文、加密用的 Keystore 金鑰，並中斷目前的教務工作階段。此操作無法復原。</string>
+    <string name="account_confirm_clear_action">確認清除</string>
+    <string name="account_confirm_logout_title">登出</string>
+    <string name="account_confirm_logout_message">將中斷目前的教務工作階段（Cookie）。是否同時清除已儲存的憑證？</string>
+    <string name="account_confirm_logout_also_clear">同時清除已儲存的憑證</string>
+    <string name="account_notice_biometric_not_enrolled">本機尚未錄入指紋或人臉，密碼無法安全儲存（加密金鑰需要生物辨識授權）。目前僅記住了學號，每次進入教務功能都需要手動輸入密碼。請至系統設定錄入生物辨識後再回來重試。</string>
+    <string name="account_notice_biometric_unsupported">本機不支援強生物辨識（部分機型的人臉屬於弱生物辨識，無法用於加密金鑰授權）。密碼無法安全儲存，每次進入教務功能都需要手動輸入密碼。</string>
+    <string name="account_notice_biometric_enroll_hint">錄入後回到本頁即可重新儲存密碼。</string>
+    <string name="account_notice_credential_expired">已儲存的憑證超過 30 天，密碼已被自動清除。請重新輸入密碼以繼續使用。</string>
+    <string name="account_risk_notice_body">密碼使用 Android Keystore 產生、且不離開本機的金鑰加密後儲存，需要指紋或人臉才能解密。但在已 root、刷入客製 ROM、或系統備份可被擷取的裝置上，攻擊者仍有可能取得密文甚至執行時明文。若你使用這類裝置，建議不要儲存密碼。密碼不會上傳到任何伺服器。</string>
+    <string name="account_biometric_prompt_title">驗證身分</string>
+    <string name="account_biometric_prompt_subtitle">驗證後可安全儲存或取用教務憑證</string>
+    <string name="account_biometric_prompt_cancel">取消</string>
+    <string name="account_msg_empty_fields">請輸入學號與密碼</string>
+    <string name="account_msg_login_succeeded">登入成功</string>
+    <string name="account_msg_credential_saved">登入成功，密碼已加密儲存</string>
+    <string name="account_msg_saved_account_only">登入成功，但本機無法安全儲存密碼，僅記住了學號</string>
+    <string name="account_msg_credential_save_failed">登入成功，但憑證儲存失敗</string>
+    <string name="account_msg_save_cancelled">已取消儲存憑證，本次登入仍然有效</string>
+    <string name="account_msg_unlock_cancelled">已取消驗證</string>
+    <string name="account_msg_unlock_failed">驗證失敗，請重試</string>
+    <string name="account_msg_credential_expired">憑證已過期，請重新輸入密碼</string>
+    <string name="account_msg_logged_out">已登出</string>
+    <string name="account_msg_logged_out_and_cleared">已登出並清除憑證</string>
+    <string name="account_msg_credential_cleared">已清除本機儲存的憑證</string>
+    <string name="campus_sync_credential_checking">正在檢查登入狀態…</string>
+    <string name="campus_sync_credential_checking_desc">正在讀取本機儲存的憑證</string>
+    <string name="campus_sync_credential_ready">憑證已就緒 · %1$s</string>
+    <string name="campus_sync_credential_ready_desc">勾選下方同步內容後即可開始</string>
+    <string name="campus_sync_credential_need_unlock">已儲存憑證，需要驗證身分</string>
+    <string name="campus_sync_credential_need_unlock_desc">驗證指紋或人臉後即可使用已儲存的憑證</string>
+    <string name="campus_sync_credential_need_password">尚未儲存登入憑證</string>
+    <string name="campus_sync_credential_need_password_desc">請先至「我的 → 帳號」設定學號與密碼</string>
+    <string name="campus_sync_credential_expired">憑證已過期</string>
+    <string name="campus_sync_credential_expired_desc">已儲存的憑證超過 30 天，請至「我的 → 帳號」重新輸入密碼</string>
+    <string name="campus_sync_credential_locked">登入已鎖定，請 %1$d 秒後重試</string>
+    <string name="campus_sync_credential_locked_desc">連續多次登入失敗後會自動冷卻，避免教務帳號被鎖</string>
+    <string name="campus_sync_credential_failed">自動登入失敗</string>
+    <string name="campus_sync_action_unlock">驗證身分</string>
+    <string name="campus_sync_action_go_account">去設定帳號</string>
+    <string name="campus_course_selection_checking_session">正在檢查登入狀態…</string>
+    <string name="campus_course_selection_login_locked">登入已鎖定，請 %1$d 秒後重試</string>
+    <string name="campus_course_selection_login_locked_desc">連續多次登入失敗後會自動冷卻，避免教務帳號被鎖</string>
+    <string name="campus_course_selection_unlock_desc">已儲存登入憑證，驗證指紋或人臉後即可進入選課</string>
+    <string name="campus_course_selection_unlock_action">驗證身分</string>
+    <string name="campus_course_selection_need_credential">尚未儲存登入憑證，可在此手動輸入，或先至「我的 → 帳號」設定</string>
+    <string name="campus_course_selection_go_account">去設定帳號</string>
+    <string name="campus_course_selection_login_for_account">為 %1$s 重新登入</string>
+
+
+    <!-- ═══ v1.7.0 账号页 UI 微调 ═══ -->
+    <string name="account_section_account_info">帳號資訊</string>
+    <string name="account_label_credential_password_saved_detail">儲存於 %1$s · 剩餘 %2$d 天</string>
+
 </resources>

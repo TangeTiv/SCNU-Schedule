@@ -18,6 +18,8 @@ import javax.inject.Singleton
 private val Context.appSettingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 // 定义 SchoolHistory Preferences DataStore 委托
 private val Context.schoolHistoryDataStore: DataStore<Preferences> by preferencesDataStore(name = "school_history")
+// 定义教务凭据 Preferences DataStore 委托（独立文件，便于一键清除）
+private val Context.authCredentialsDataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_credentials")
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -52,4 +54,17 @@ object DataStoreModule {
     @Named("AppSettings")
     fun provideAppSettingsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
         context.appSettingsDataStore
+
+    /**
+     * 提供教务凭据 DataStore（Keystore 密文 + 失败计数/锁定时间）。
+     *
+     * 单独一个文件而不是塞进 `app_settings`：
+     * - 「一键清除凭据」可以直接清空整个文件，不会误伤设置项
+     * - 凭据的读写频率与设置项完全不同，分开避免相互干扰
+     */
+    @Provides
+    @Singleton
+    @Named("AuthCredentials")
+    fun provideAuthCredentialsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+        context.authCredentialsDataStore
 }
