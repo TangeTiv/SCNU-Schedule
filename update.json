@@ -1,21 +1,21 @@
 {
   "prod": {
-    "latestVersionCode": 13,
-    "latestVersionName": "1.7.0",
-    "changelog": "🚀 v1.7.0 更新\n- 【我的】新增「账号」入口：学号密码只需输入一次，之后进教务同步 / 选课 / 成绩 / 考试 / 学业情况都不再要求\n- 密码经 Android Keystore 加密后存在本机，需指纹或人脸才能解密；密码绝不上传任何服务器\n- 登录成功后弹一次生物识别保存凭据；此后 15 分钟内进教务功能无需重复验证\n- 未录入指纹 / 仅支持弱生物识别的设备自动降级：只记住学号，密码每次手动输入，不会明文保存\n- 教务密码变更后自动识别并引导重新输入；连续失败 5 次进入 1 分钟冷却，避免教务账号被锁\n- 账号页支持一键清除凭据，并明示 root / 定制 ROM / 备份提取等残余风险\n- 合并两套并存的登录实现，修复「登录未真正进入教务系统却被判为成功」的问题\n- 课表 / 今日 / 设置 仍保持免登录、离线可用",
+    "latestVersionCode": 14,
+    "latestVersionName": "1.7.1",
+    "changelog": "🚀 v1.7.1 更新\n- 修正首次启动引导弹窗：步骤改为「设置开学日期 → 登录账号 → 同步数据」，与当前版本一致\n- 去掉弹窗里三处已过期的说明（登录入口位置、下学期课表、校园页功能列表）\n- 弹窗注意事项改为密码安全、生物识别降级、教务系统不稳定等真实提示\n- 引导弹窗支持多语言（简体 / 繁体 / English）\n- 仓库新增完整图文使用教程（docs/使用文档.md）",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.1/SCNU-Schedule.apk"
     },
     "checksums": {
-      "universal": "8bd8e54603acdaaa8141ac9d550f795134f10556b2aa7f9a82f1b45e4a7626c3"
+      "universal": "8d65888903f7ebda8de929c9bffc29354e1f75b1a9d91216467cd23bf49f0af2"
     }
   },
   "dev": {
-    "latestVersionCode": 13,
-    "latestVersionName": "1.7.0-dev",
-    "changelog": "🚀 v1.7.0 更新\n- 【我的】新增「账号」入口：学号密码只需输入一次，之后进教务同步 / 选课 / 成绩 / 考试 / 学业情况都不再要求\n- 密码经 Android Keystore 加密后存在本机，需指纹或人脸才能解密；密码绝不上传任何服务器\n- 登录成功后弹一次生物识别保存凭据；此后 15 分钟内进教务功能无需重复验证\n- 未录入指纹 / 仅支持弱生物识别的设备自动降级：只记住学号，密码每次手动输入，不会明文保存\n- 教务密码变更后自动识别并引导重新输入；连续失败 5 次进入 1 分钟冷却，避免教务账号被锁\n- 账号页支持一键清除凭据，并明示 root / 定制 ROM / 备份提取等残余风险\n- 合并两套并存的登录实现，修复「登录未真正进入教务系统却被判为成功」的问题\n- 课表 / 今日 / 设置 仍保持免登录、离线可用",
+    "latestVersionCode": 14,
+    "latestVersionName": "1.7.1-dev",
+    "changelog": "🚀 v1.7.1 更新\n- 修正首次启动引导弹窗：步骤改为「设置开学日期 → 登录账号 → 同步数据」，与当前版本一致\n- 去掉弹窗里三处已过期的说明（登录入口位置、下学期课表、校园页功能列表）\n- 弹窗注意事项改为密码安全、生物识别降级、教务系统不稳定等真实提示\n- 引导弹窗支持多语言（简体 / 繁体 / English）\n- 仓库新增完整图文使用教程（docs/使用文档.md）",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.1/SCNU-Schedule.apk"
     },
     "checksums": {
       "universal": ""
