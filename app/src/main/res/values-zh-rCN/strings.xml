@@ -755,4 +755,20 @@
     <string name="account_section_account_info">账号信息</string>
     <string name="account_label_credential_password_saved_detail">保存于 %1$s · 剩余 %2$d 天</string>
 
+
+    <!-- ═══ v1.7.1 首次启动引导弹窗 ═══ -->
+    <string name="onboarding_title">🚀 三步用起来</string>
+    <string name="onboarding_step1_title">设置开学日期</string>
+    <string name="onboarding_step1_desc">底部【我的】→【设置开学日期】，选本学期第一周的周一</string>
+    <string name="onboarding_step2_title">登录教务账号（只需一次）</string>
+    <string name="onboarding_step2_desc">【我的】→【高级功能】→【账号】，输入学号与教务密码</string>
+    <string name="onboarding_step3_title">同步数据</string>
+    <string name="onboarding_step3_desc">底部【校园】→【教务同步】→ 右上角【一键全选】→【开始安全同步】</string>
+    <string name="onboarding_notice_title">⚠️ 注意</string>
+    <string name="onboarding_notice_1">密码经系统级密钥加密后只存在本机，需指纹或人脸解锁，绝不上传任何服务器。</string>
+    <string name="onboarding_notice_2">未录入指纹的手机会只记住学号，密码每次手动输入。</string>
+    <string name="onboarding_notice_3">教务系统偶尔不稳定，同步失败请多试几次或换个网络。</string>
+    <string name="onboarding_notice_4">有问题请到【我的】→【更多】→【反馈与建议】告诉我们。</string>
+    <string name="onboarding_confirm">我知道了</string>
+
 </resources>

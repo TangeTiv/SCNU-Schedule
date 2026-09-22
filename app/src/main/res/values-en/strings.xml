@@ -753,4 +753,20 @@
     <string name="account_section_account_info">Account info</string>
     <string name="account_label_credential_password_saved_detail">Saved %1$s · %2$d days left</string>
 
+
+    <!-- ═══ v1.7.1 首次启动引导弹窗 ═══ -->
+    <string name="onboarding_title">🚀 Three steps to get started</string>
+    <string name="onboarding_step1_title">Set the semester start date</string>
+    <string name="onboarding_step1_desc">Me - Set semester start date, pick the Monday of week 1</string>
+    <string name="onboarding_step2_title">Sign in to the campus system (once)</string>
+    <string name="onboarding_step2_desc">Me - Advanced - Account, enter your student ID and password</string>
+    <string name="onboarding_step3_title">Sync your data</string>
+    <string name="onboarding_step3_desc">Campus - Academic sync, tap Select all, then Start safe sync</string>
+    <string name="onboarding_notice_title">⚠️ Notes</string>
+    <string name="onboarding_notice_1">Your password is encrypted with a system-level key and stays on this device. It needs your fingerprint or face to unlock, and is never uploaded to any server.</string>
+    <string name="onboarding_notice_2">On devices without biometrics, only your student ID is remembered and you type the password each time.</string>
+    <string name="onboarding_notice_3">The campus system is sometimes unstable. If syncing fails, retry or switch networks.</string>
+    <string name="onboarding_notice_4">Found a problem? Tell us via Me - More - Feedback.</string>
+    <string name="onboarding_confirm">Got it</string>
+
 </resources>
