@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Gradle files
 .gradle/
 build/
@@ -19,10 +18,18 @@ output-metadata.json
 
 # IntelliJ
 *.iml
-.idea/
 misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
+
+# IDE 配置：只忽略目录内容，保留少量需要共享的配置文件
+# 注意要用 `.idea/*` 而不是 `.idea/` —— 被忽略的目录 git 不会再往里看，
+# 下面那些 `!` 否定规则就永远不会生效（这是当初两边冲突的根因）。
+.idea/*
+!.idea/jsonSchemas.xml
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
 
 # Keystore files
 *.jks
@@ -34,13 +41,10 @@ google-services.json
 # Android Profiling
 *.hprof
 *.dm
-=======
-.idea/*
-!.idea/jsonSchemas.xml
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
 
 # 忽略适配占位符文件，防止开发者误提交测试代码
 resources/GLOBAL_TOOLS/test.js
->>>>>>> tange/main
+
+# AI 助手工作区（本地工具目录与记忆，不入库）
+.workbuddy-ai/
+.claude/
