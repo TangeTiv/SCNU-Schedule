@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,9 @@ import com.xingheyuzhuan.shiguangschedule.R
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.EnrolledCourse
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SelectableCourse
 import com.xingheyuzhuan.shiguangschedule.data.network.selection.SubCourse
+import com.xingheyuzhuan.shiguangschedule.ui.account.rememberBiometricUnlocker
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 教学班选择 / 子课程勾选
@@ -613,34 +617,114 @@ private fun ConfirmLine(label: String, value: String) {
 /**
  * 【校园】页的选课登录对话框。
  *
- * 点【选课】卡片时**先弹此框**，而不是直接进页面 —— 登录成功后才导航。
- * 学号预填（与教务同步共用 `campus_account`），密码每次重新输入且不落盘。
+ * ## v1.7.0：优先用已保存凭据，用户多数情况下看不到这个框
+ *
+ * 打开时先调 `prepareCampusLogin()`，按结果分流：
+ *
+ * | 状态 | 表现 |
+ * |---|---|
+ * | 会话可直接恢复 | **立刻关闭并导航**，对话框一闪而过甚至看不见 |
+ * | 需要生物识别 | 自动弹一次指纹；取消则落到"改用密码登录" |
+ * | 无凭据 / 凭据过期 | 引导去【我的 → 账号】，同时保留手输兜底 |
+ * | 冷却中 | 只显示倒计时，**不给重试按钮**（避免把 SSO 账号锁死） |
  *
  * @param viewModel 与选课页共用同一个 ViewModel 实例，因此登录态、类别、
  *                  课程缓存会在导航后无缝延续，无需二次登录或重复拉取
- * @param onSuccess 登录成功后的回调（用于关闭对话框并导航进选课页）
+ * @param onSuccess 会话就绪后的回调（关闭对话框并导航进选课页）
+ * @param onGoToAccount 去【我的 → 账号】设置凭据
  */
 @Composable
 internal fun CourseSelectionLoginDialog(
     viewModel: CourseSelectionViewModel,
     onSuccess: () -> Unit,
+    onGoToAccount: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val savedAccount by viewModel.savedAccount.collectAsStateWithLifecycle()
+    val campusState by viewModel.campusLoginState.collectAsStateWithLifecycle()
+    val maskedAccount by viewModel.maskedAccount.collectAsStateWithLifecycle()
+
+    val biometricUnlocker = rememberBiometricUnlocker()
+    val scope = rememberCoroutineScope()
 
     var account by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var inlineError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(savedAccount) {
-        if (account.isEmpty() && savedAccount.isNotEmpty()) account = savedAccount
+    /** 用户放弃生物识别、改走手输密码 */
+    var manualInput by remember { mutableStateOf(false) }
+
+    /** 每次进入只自动弹一次指纹，取消后不再骚扰 */
+    var autoUnlockAttempted by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.prepareCampusLogin()
+    }
+
+    LaunchedEffect(campusState) {
+        when (val state = campusState) {
+            is CampusLoginState.Ready -> onSuccess()
+
+            is CampusLoginState.NeedsUnlock -> {
+                if (autoUnlockAttempted) return@LaunchedEffect
+                autoUnlockAttempted = true
+                val cipher = viewModel.createUnlockCipher()
+                if (cipher == null) {
+                    // 密钥已作废（用户换了指纹）→ 退回手输
+                    manualInput = true
+                    viewModel.prepareCampusLogin()
+                } else {
+                    biometricUnlocker.authenticate(
+                        cipher = cipher,
+                        onSucceeded = { authenticated -> viewModel.unlockCampusLogin(authenticated) },
+                        onFailed = { manualInput = true }
+                    )
+                }
+            }
+
+            // 冷却结束后自动复查一次。
+            // 对话框里的倒计时是**快照值**（不刷新），若不自查，
+            // 用户等完 1 分钟也只能关掉对话框重开 —— 死路。
+            is CampusLoginState.Locked -> {
+                delay(state.remainingSeconds * 1_000L + 500L)
+                viewModel.prepareCampusLogin()
+            }
+
+            else -> Unit
+        }
+    }
+
+    // 有学号可复用时不必让用户再输一遍学号
+    val useSavedAccount = !maskedAccount.isNullOrBlank()
+    val showAccountField = !useSavedAccount
+
+    val doManualLogin: () -> Unit = {
+        inlineError = null
+        if (useSavedAccount) {
+            viewModel.loginWithSavedAccount(
+                password = password,
+                onSuccess = onSuccess,
+                onError = { inlineError = it }
+            )
+        } else {
+            viewModel.login(
+                account = account.trim(),
+                password = password,
+                onSuccess = onSuccess,
+                onError = { inlineError = it }
+            )
+        }
+    }
+
+    val dismissDialog: () -> Unit = {
+        viewModel.resetCampusLoginState()
+        onDismiss()
     }
 
     AlertDialog(
         // 登录期间禁止点外部关闭，避免请求已在途却丢失后续导航
-        onDismissRequest = { if (!uiState.isLoggingIn) onDismiss() },
+        onDismissRequest = { if (!uiState.isLoggingIn) dismissDialog() },
         title = {
             Text(
                 text = stringResource(R.string.campus_course_selection),
@@ -649,22 +733,91 @@ internal fun CourseSelectionLoginDialog(
         },
         text = {
             Column {
-                Text(
-                    text = stringResource(R.string.campus_course_selection_login_desc),
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
+                when (val state = campusState) {
+                    is CampusLoginState.Checking -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = stringResource(R.string.campus_course_selection_checking_session),
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
 
-                AccountPasswordFields(
-                    account = account,
-                    onAccountChange = { account = it },
-                    password = password,
-                    onPasswordChange = { password = it },
-                    passwordVisible = passwordVisible,
-                    onTogglePasswordVisible = { passwordVisible = !passwordVisible },
-                    enabled = !uiState.isLoggingIn
-                )
+                    is CampusLoginState.Locked -> {
+                        Text(
+                            text = stringResource(
+                                R.string.campus_course_selection_login_locked,
+                                state.remainingSeconds
+                            ),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = stringResource(R.string.campus_course_selection_login_locked_desc),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    is CampusLoginState.NeedsUnlock -> {
+                        if (!manualInput) {
+                            Text(
+                                text = stringResource(R.string.campus_course_selection_unlock_desc),
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            ManualCredentialFields(
+                                showAccountField = showAccountField,
+                                maskedAccount = maskedAccount,
+                                account = account,
+                                onAccountChange = { account = it },
+                                password = password,
+                                onPasswordChange = { password = it },
+                                passwordVisible = passwordVisible,
+                                onTogglePasswordVisible = { passwordVisible = !passwordVisible },
+                                enabled = !uiState.isLoggingIn
+                            )
+                        }
+                    }
+
+                    is CampusLoginState.NeedsCredential,
+                    is CampusLoginState.Failed -> {
+                        Text(
+                            text = when (state) {
+                                is CampusLoginState.Failed -> state.message
+                                else -> stringResource(R.string.campus_course_selection_need_credential)
+                            },
+                            fontSize = 13.sp,
+                            color = if (state is CampusLoginState.Failed) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        ManualCredentialFields(
+                            showAccountField = showAccountField,
+                            maskedAccount = maskedAccount,
+                            account = account,
+                            onAccountChange = { account = it },
+                            password = password,
+                            onPasswordChange = { password = it },
+                            passwordVisible = passwordVisible,
+                            onTogglePasswordVisible = { passwordVisible = !passwordVisible },
+                            enabled = !uiState.isLoggingIn
+                        )
+                    }
+
+                    is CampusLoginState.Ready -> Unit // 正在关闭
+                }
 
                 inlineError?.let { message ->
                     Spacer(modifier = Modifier.height(10.dp))
@@ -675,46 +828,131 @@ internal fun CourseSelectionLoginDialog(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = stringResource(R.string.campus_course_selection_password_notice),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (campusState !is CampusLoginState.Locked) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = stringResource(R.string.campus_course_selection_password_notice),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    inlineError = null
-                    // 走校园页专用入口：会先清掉"浏览中途失效"标记，
-                    // 避免弹窗自己显示"会话过期，重新登录"
-                    viewModel.loginFromCampusDialog(
-                        account = account.trim(),
-                        password = password,
-                        onSuccess = onSuccess,
-                        onError = { inlineError = it }
+            when (campusState) {
+                is CampusLoginState.Checking,
+                is CampusLoginState.Locked,
+                is CampusLoginState.Ready -> Unit
+
+                is CampusLoginState.NeedsUnlock -> {
+                    if (manualInput) {
+                        LoginButton(
+                            isLoggingIn = uiState.isLoggingIn,
+                            enabled = password.isNotBlank(),
+                            onClick = doManualLogin
+                        )
+                    } else {
+                        // 生物识别弹窗正在前台；这里提供主动重试（用户误触取消后可再来一次）
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    val cipher = viewModel.createUnlockCipher()
+                                    if (cipher == null) {
+                                        manualInput = true
+                                    } else {
+                                        biometricUnlocker.authenticate(
+                                            cipher = cipher,
+                                            onSucceeded = { authenticated ->
+                                                viewModel.unlockCampusLogin(authenticated)
+                                            },
+                                            onFailed = { manualInput = true }
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(stringResource(R.string.campus_course_selection_unlock_action))
+                        }
+                    }
+                }
+
+                is CampusLoginState.NeedsCredential,
+                is CampusLoginState.Failed -> {
+                    LoginButton(
+                        isLoggingIn = uiState.isLoggingIn,
+                        enabled = password.isNotBlank() && (useSavedAccount || account.isNotBlank()),
+                        onClick = doManualLogin
                     )
-                },
-                enabled = !uiState.isLoggingIn && account.isNotBlank() && password.isNotBlank()
-            ) {
-                if (uiState.isLoggingIn) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.campus_course_selection_logging_in))
-                } else {
-                    Text(stringResource(R.string.campus_course_selection_login_action))
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !uiState.isLoggingIn) {
-                Text(stringResource(R.string.campus_course_selection_cancel))
+            if (campusState is CampusLoginState.NeedsCredential ||
+                campusState is CampusLoginState.Failed
+            ) {
+                TextButton(onClick = onGoToAccount, enabled = !uiState.isLoggingIn) {
+                    Text(stringResource(R.string.campus_course_selection_go_account))
+                }
+            } else {
+                TextButton(onClick = dismissDialog, enabled = !uiState.isLoggingIn) {
+                    Text(stringResource(R.string.campus_course_selection_cancel))
+                }
             }
         }
     )
+}
+
+/** 手输凭据区：有已保存学号时只显示密码框（学号以脱敏形式说明）。 */
+@Composable
+private fun ManualCredentialFields(
+    showAccountField: Boolean,
+    maskedAccount: String?,
+    account: String,
+    onAccountChange: (String) -> Unit,
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    passwordVisible: Boolean,
+    onTogglePasswordVisible: () -> Unit,
+    enabled: Boolean
+) {
+    if (!showAccountField && maskedAccount != null) {
+        Text(
+            text = stringResource(R.string.campus_course_selection_login_for_account, maskedAccount),
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+    }
+    AccountPasswordFields(
+        account = account,
+        onAccountChange = onAccountChange,
+        password = password,
+        onPasswordChange = onPasswordChange,
+        passwordVisible = passwordVisible,
+        onTogglePasswordVisible = onTogglePasswordVisible,
+        enabled = enabled,
+        showAccountField = showAccountField
+    )
+}
+
+/** 登录按钮（带在途 loading）。 */
+@Composable
+private fun LoginButton(
+    isLoggingIn: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Button(onClick = onClick, enabled = !isLoggingIn && enabled) {
+        if (isLoggingIn) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(R.string.campus_course_selection_logging_in))
+        } else {
+            Text(stringResource(R.string.campus_course_selection_login_action))
+        }
+    }
 }

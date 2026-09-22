@@ -45,6 +45,15 @@ sealed interface Destination : NavKey {
     @Serializable data object ThemeSettings : Destination
     @Serializable data object SyncSelection : Destination
     @Serializable data object ScnuVerification : Destination
+
+    /**
+     * 账号（教务登录凭据管理）。
+     *
+     * 全 App **唯一**的"输入学号密码"入口 —— 教务同步 / 选课 / 成绩 / 考试 /
+     * 学业情况都改为读取这里保存的凭据，无凭据时统一引导到本页。
+     */
+    @Serializable data object Account : Destination
+
     @Serializable data object Grades : Destination
     @Serializable data object Exams : Destination
 

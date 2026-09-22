@@ -62,9 +62,10 @@ data class NonFormalSyncResult(
  *
  * ## 会话来源
  *
- * 本类**不自己登录**，复用 [ScnuScraper.login] 建立的会话 —— 两者注入的是
+ * 本类**不自己登录**，复用 [ScnuScraper] 的会话 —— 两者注入的是
  * 同一个 `@Named("scnu")` [OkHttpClient] 与 `ScnuCookieJar`。
- * 因此调用方必须先 `scraper.login(account, password)`，再调用本类的方法。
+ * 因此调用方必须先用 `ScnuAuthManager.ensureSession()`（或 `login()`）
+ * 建立会话，再调用本类的方法。
  *
  * ## 逐项容错（关键设计）
  *

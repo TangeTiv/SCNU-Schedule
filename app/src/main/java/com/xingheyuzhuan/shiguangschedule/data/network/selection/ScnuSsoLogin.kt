@@ -1,5 +1,6 @@
 package com.xingheyuzhuan.shiguangschedule.data.network.selection
 
+import com.xingheyuzhuan.shiguangschedule.data.network.ScnuCookieJar
 import com.xingheyuzhuan.shiguangschedule.data.network.ScnuScraper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,10 +16,24 @@ import javax.inject.Singleton
 /**
  * 登录失败异常。携带从页面提取的教务原文错误信息。
  */
-class ScnuLoginException(message: String) : Exception(message)
+open class ScnuLoginException(message: String) : Exception(message)
 
 /**
- * SCNU 统一身份认证（SSO）登录。
+ * **凭据被拒**（学号或密码错误）。
+ *
+ * 与父类 [ScnuLoginException] 的区别是语义更窄：只表示"教务明确拒绝了这组凭据"，
+ * 不包含网络故障、HTTP 5xx、授权未落地等情况。
+ *
+ * ## 为什么必须单独分出来
+ *
+ * 失败锁定（连续 N 次失败进入冷却）**只能**统计这一种失败。
+ * 若把网络抖动也算进去，用户在信号差的地方点几次就会被锁死，
+ * 而且锁的还是他自己的 SSO 账号 —— 那是纯粹的伤害。
+ */
+class ScnuInvalidCredentialException(message: String) : ScnuLoginException(message)
+
+/**
+ * SCNU 统一身份认证（SSO）登录 —— **全项目唯一的登录实现**。
  *
  * 严格 1:1 翻译自 `scnu_course_selector.py` 的 `login()`，实现**双授权路径**：
  *
@@ -28,18 +43,20 @@ class ScnuLoginException(message: String) : Exception(message)
  * 3. GET  /openapi/auth.html?client_id=...     → 主路径：OAuth code 流程
  *       └ 若响应含 gotoApp → 再从 JS 里抠 var url 并跳转
  * 4. GET  /openapi/fastlogin.html?app_id=96    → 兜底路径：app_id 授权
+ * 5. 校验 CookieJar 中 jwxt.scnu.edu.cn 是否已有会话 Cookie
  * ```
  *
- * ## 与 [ScnuScraper.login] 的关系（重要）
+ * ## 与 `ScnuScraper.login` 的关系（v1.7.0 起已合并）
  *
- * [ScnuScraper.login] 是**已发布且稳定**的同步模块登录实现，它**只走路径 4**。
- * 本类额外实现路径 3，因为脚本作者验证过的流程以 `auth.html` 优先。
+ * v1.6.0 时两套登录实现并存：`ScnuScraper.login()` 只走路径 4，
+ * 本类额外实现路径 3。当时的顾虑是"不想给已发布的同步链路引入回归风险"。
  *
- * 两者**暂时并存**，原因是不想让选课模块的开发给已发布的同步链路引入回归风险。
- *
- * > TODO(v1.6.0): 评估将 [ScnuScraper.login] 迁移到本类，消除重复的登录实现。
- * > 在完成迁移前，**不要删除任何一侧**——[ScnuScraper] 仍被
- * > `CampusSyncViewModel` 使用，删除会导致教务同步整体失效。
+ * v1.7.0 完成合并（消化掉原 TODO）：
+ * - `ScnuScraper.login()` **已删除**，本类成为唯一入口；
+ * - `ScnuScraper` 只保留爬取职责（`fetchCourses` / `fetchGrades` / `fetchExams`）；
+ * - 合并时**补上了原实现里的最终校验**（路径 5）——
+ *   原 `ScnuScraper.login()` 会检查 fastlogin 后是否落到 `jwxt` 域名，
+ *   而本类原来直接 `return true`，合并时若不补回，同步链路会失去这层保护。
  *
  * ## 会话共享
  *
@@ -56,6 +73,9 @@ class ScnuSsoLogin @Inject constructor(
         private const val SSO_BASE = "https://sso.scnu.edu.cn"
         private const val SSO_SERVICE = "$SSO_BASE/AccountService"
         private const val JWXT_BASE = "https://jwxt.scnu.edu.cn"
+
+        /** 教务系统域名，用于最终会话校验（阶段 E） */
+        private const val JWXT_HOST = "jwxt.scnu.edu.cn"
 
         /**
          * 教务系统在 SSO 侧的 OAuth 应用标识。
@@ -131,6 +151,17 @@ class ScnuSsoLogin @Inject constructor(
             if (response.code != 302) {
                 val body = response.body?.string().orEmpty()
                 val errorMsg = ERROR_MSG_RE.find(body)?.groupValues?.getOrNull(1)?.trim()
+
+                // ⚠️ 只有「服务端确实处理了这次登录并拒绝」才归类为**凭据被拒**。
+                // 判据是 HTTP 200 + 页面里能抠到错误文案 —— SSO 拒绝凭据时就是
+                // 返回 200 并渲染错误提示。
+                //
+                // 5xx / 429 / 403 属于基础设施故障，必须归为普通 ScnuLoginException：
+                // 否则一次服务端抖动就会被上层记成「用户连续输错」，
+                // 还可能把用户已保存的密码当成"已失效"删掉。
+                if (response.code == 200 && errorMsg != null) {
+                    throw ScnuInvalidCredentialException("登录失败: $errorMsg")
+                }
                 throw ScnuLoginException("登录失败: ${errorMsg ?: "HTTP ${response.code}"}")
             }
         }
@@ -172,10 +203,17 @@ class ScnuSsoLogin @Inject constructor(
             }
         }
 
-        // ══ 校验：确认已进入教务系统 ══
-        // 注意：这里只验证 fastlogin 会话是否建立，真正的"会话有效性"由
-        // ScnuCourseSelector.refreshContext() 通过抓取选课首页来确认
-        // （对应脚本 login() 末尾的 _refresh_context()）。
+        // ══ 阶段 E: 校验 —— 确认教务会话真的落地 ══
+        // 302 只证明"凭据正确"，不证明"教务系统已认可该会话"。
+        // 教务域名上出现未过期的 Cookie，才是会话建立的直接证据。
+        // 这一步是从原 ScnuScraper.login() 的 URL 校验（"jwxt" in finalUrl）迁移过来的，
+        // 合并时不能丢 —— 否则同步链路会在会话未建立的情况下继续发请求，
+        // 最终表现为一堆难排查的"JSON 解析失败"。
+        val jar = httpClient.cookieJar as? ScnuCookieJar
+        if (jar != null && !jar.hasValidCookiesFor(JWXT_HOST)) {
+            throw ScnuLoginException("登录未进入教务系统，请稍后重试")
+        }
+
         true
     }
 

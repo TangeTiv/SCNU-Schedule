@@ -179,13 +179,19 @@ fun CampusScreen(
     }
 
     // ── 选课登录对话框 ──
-    // 登录成功 → 关闭对话框并导航进选课页（此时 ViewModel 已是登录态）
+    // v1.7.0 起对话框会**优先用已保存凭据**恢复会话：
+    // 多数情况下用户看不到它（会话直接就绪 → 立刻关闭并导航）；
+    // 只有在需要生物识别、无凭据、或冷却中时才会真正呈现内容。
     if (showSelectionLogin) {
         CourseSelectionLoginDialog(
             viewModel = courseSelectionViewModel,
             onSuccess = {
                 showSelectionLogin = false
                 onNavigate(Destination.CourseSelection)
+            },
+            onGoToAccount = {
+                showSelectionLogin = false
+                onNavigate(Destination.Account)
             },
             onDismiss = { showSelectionLogin = false }
         )
