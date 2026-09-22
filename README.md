@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/SCNU_Schedule-1.0.0-73CAF8?style=for-the-badge&logo=appveyor">
-  <img alt="SCNU Schedule" src="https://img.shields.io/badge/SCNU_Schedule-1.0.0-73CAF8?style=for-the-badge&logo=appveyor">
+  <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/SCNU_Schedule-1.7.1-73CAF8?style=for-the-badge&logo=appveyor">
+  <img alt="SCNU Schedule" src="https://img.shields.io/badge/SCNU_Schedule-1.7.1-73CAF8?style=for-the-badge&logo=appveyor">
 </picture>
 
 # 🏫 华师课表 (SCNU-Schedule)
@@ -11,9 +11,25 @@
 [![GitHub Releases](https://img.shields.io/github/v/release/TangeTiv/SCNU-Schedule)](https://github.com/TangeTiv/SCNU-Schedule/releases)
 ![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android)
 
+### 📖 [**点这里看完整图文使用教程 →**](docs/使用文档.md)
+
+> 首次使用、每个功能怎么点、常见问题，都在里面（含逐步截图）。
+>
+> **⚠️ 遇到问题请先看教程的「读前必看」与「常见问题」，再到 [反馈渠道](#-反馈与建议) 告诉我们。**
+> 本项目是基于开源项目二次开发的**个人作品**，能力有限、难免有 bug，请多多包涵与反馈。
+
 ---
 
 ## ✨ 核心定制功能
+
+### 🔐 一次登录，全站复用（v1.7.0 新增）
+
+学号密码只需在 **【我的 → 账号】** 输入一次，之后进教务同步 / 选课 / 成绩 / 考试 / 学业情况
+都不再要求输入。密码用 **Android 系统级密钥库（Keystore）** 加密后**只存在本机**，
+解密需要指纹或人脸，**绝不上传任何服务器**。
+
+设备没有可用的强生物识别时**自动降级**：只记住学号、密码每次手动输，
+**不会为了"能用"而把密码明文存下来**。账号页提供一键清除，并明示 root / 定制 ROM 等残余风险。
 
 ### 🚀 教务全量无缝同步
 
@@ -35,15 +51,25 @@
 
 ## 🚀 快速入门
 
-刚下载的同学，点击 app 底部的 **【我的】** 页面，找到 **【设置开学日期】**，设置好开学日期。
+**全新安装后第一次打开，会看到这个引导弹窗**，按上面的三步做一遍就行：
 
-然后点击底部 **【校园】** 页面，点击 **【教务同步】**，输入教务系统的账号密码，点击 **【全选】**，点击 **【安全同步】** （不成功多试几次），此时配置成功了。
+<img src="docs/images/25-首次启动引导弹窗.png" width="300">
+
+1. **设置开学日期** —— 底部【我的】→【设置开学日期】，选本学期第一周的周一。
+   ⚠️ 这一步别跳过，它决定了「现在是第几周」算得对不对。
+2. **登录教务账号**（只需一次）—— 【我的】→【高级功能】→【账号】，输入学号与教务密码。
+   登录成功后按一次指纹/人脸，密码会用系统级密钥加密存在本机。
+3. **同步数据** —— 底部【校园】→【教务同步】→ 右上角【一键全选】→【开始安全同步】
+   （不成功多试几次，教务系统偶尔会抽风）。
+
+配置完成，之后进成绩 / 考试 / 学业情况 / 选课都**不用再输密码**。
 
 ### ⚠️ 注意
 
-1. **现阶段导入的课程表是下个学期的。** 如果想导入这个学期的课程表，请到 **【我的】 → 【课表导入/导出】 → 【教务导入】**，找到华师，到教务系统抓取。
-2. 目前 **【校园】** 页面只开发了 **【教务同步】**、**【考试安排】**、**【成绩查询】** 模块，其他功能后续开发。
-3. 有任何问题，欢迎大家到 **【我的】 → 【更多】 → 【反馈与建议】** 中进行反馈。
+1. **【教务同步】拉取的是教务系统当前的「默认学期」** —— 假期里这个默认值可能已经是**下学期**。
+   如果你要的是**本学期**的课表，请到 **【我的】→【课表导入/导出】→【教务导入】**，找到华师，从教务系统抓取。
+2. 有任何问题，请先看 **[使用文档的「常见问题」](docs/使用文档.md#八常见问题)**，
+   再到 **【我的】→【更多】→【反馈与建议】** 或 [Issues](https://github.com/TangeTiv/SCNU-Schedule/issues) 反馈。
 
 ---
 
@@ -51,9 +77,13 @@
 
 | 课表视图 | 今日视图 | 校园服务 |
 |:---:|:---:|:---:|
-| ![课表](picture/Preview_1.png) | ![今日](picture/Preview_1.png) | ![校园](picture/Preview_1.png) |
+| ![课表](docs/images/01-课表周视图.png) | ![今日](docs/images/02-今日课表.png) | ![校园](docs/images/03-校园页.png) |
 
-> 更多截图请查看 `picture/` 目录。
+| 成绩查询 | 学业情况 | 自主选课 |
+|:---:|:---:|:---:|
+| ![成绩](docs/images/08-成绩查询.png) | ![学业](docs/images/10-学业情况.png) | ![选课](docs/images/11-选课页.png) |
+
+> 全部截图见 [`docs/images/`](docs/images/) 目录（22 张），完整说明见 [`docs/使用文档.md`](docs/使用文档.md)。
 
 ---
 
@@ -88,7 +118,9 @@
 
 ## 🧩 小组件
 
-项目提供多种桌面小组件：
+项目提供多种桌面小组件，不用打开 App 就能看到下一节课：
+
+<img src="picture/all_widget.png" width="300">
 
 | 类型 | 尺寸 | 说明 |
 | :--- | :---: | :--- |
@@ -96,6 +128,8 @@
 | 紧凑 | 4×1 | 紧凑排列当日课程 |
 | 双日 | 4×2 | 展示今明两天课程 |
 | 列表 | 4×3 | 完整列表视图 |
+
+> 添加方式：长按桌面空白处 → 小部件 → 找到「师陶学程」→ 选尺寸拖到桌面。
 
 ---
 
