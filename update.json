@@ -1,21 +1,21 @@
 {
   "prod": {
-    "latestVersionCode": 12,
-    "latestVersionName": "1.6.0",
-    "changelog": "🚀 v1.6.0 更新\n- 【校园】新增「学业情况」：展示培养计划、学分完成度与非正式学时，共 5 个标签页\n- 一级标签用胶囊切换，二级标签为 iOS 分段控件（含滑动动画）\n- 父节点自动汇总子模块课程数，树枝逐级折叠展开\n- 「非正式学时」按课程名 / 学年学期 / 学时列表展示\n- 【教务同步】新增「学业情况」同步项（含非正式学时）\n- 校园页主网格第 4 张卡换成「学业情况」，校园地图移至下方小卡\n- 同步稳定性：兼容教务数字/字符串混用字段，新增瞬时故障自动重试\n⚠️ 本次涉及数据库升级（v6 → v7），首次启动会自动迁移，不影响已有数据",
+    "latestVersionCode": 13,
+    "latestVersionName": "1.7.0",
+    "changelog": "🚀 v1.7.0 更新\n- 【我的】新增「账号」入口：学号密码只需输入一次，之后进教务同步 / 选课 / 成绩 / 考试 / 学业情况都不再要求\n- 密码经 Android Keystore 加密后存在本机，需指纹或人脸才能解密；密码绝不上传任何服务器\n- 登录成功后弹一次生物识别保存凭据；此后 15 分钟内进教务功能无需重复验证\n- 未录入指纹 / 仅支持弱生物识别的设备自动降级：只记住学号，密码每次手动输入，不会明文保存\n- 教务密码变更后自动识别并引导重新输入；连续失败 5 次进入 1 分钟冷却，避免教务账号被锁\n- 账号页支持一键清除凭据，并明示 root / 定制 ROM / 备份提取等残余风险\n- 合并两套并存的登录实现，修复「登录未真正进入教务系统却被判为成功」的问题\n- 课表 / 今日 / 设置 仍保持免登录、离线可用",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.6.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.0/SCNU-Schedule.apk"
     },
     "checksums": {
-      "universal": "01412b9b8e33cc190a61883bf9c9090858ade49b712669b4961030c413f94295"
+      "universal": "8bd8e54603acdaaa8141ac9d550f795134f10556b2aa7f9a82f1b45e4a7626c3"
     }
   },
   "dev": {
-    "latestVersionCode": 12,
-    "latestVersionName": "1.6.0-dev",
-    "changelog": "🚀 v1.6.0 更新\n- 【校园】新增「学业情况」：展示培养计划、学分完成度与非正式学时，共 5 个标签页\n- 一级标签用胶囊切换，二级标签为 iOS 分段控件（含滑动动画）\n- 父节点自动汇总子模块课程数，树枝逐级折叠展开\n- 「非正式学时」按课程名 / 学年学期 / 学时列表展示\n- 【教务同步】新增「学业情况」同步项（含非正式学时）\n- 校园页主网格第 4 张卡换成「学业情况」，校园地图移至下方小卡\n- 同步稳定性：兼容教务数字/字符串混用字段，新增瞬时故障自动重试\n⚠️ 本次涉及数据库升级（v6 → v7），首次启动会自动迁移，不影响已有数据",
+    "latestVersionCode": 13,
+    "latestVersionName": "1.7.0-dev",
+    "changelog": "🚀 v1.7.0 更新\n- 【我的】新增「账号」入口：学号密码只需输入一次，之后进教务同步 / 选课 / 成绩 / 考试 / 学业情况都不再要求\n- 密码经 Android Keystore 加密后存在本机，需指纹或人脸才能解密；密码绝不上传任何服务器\n- 登录成功后弹一次生物识别保存凭据；此后 15 分钟内进教务功能无需重复验证\n- 未录入指纹 / 仅支持弱生物识别的设备自动降级：只记住学号，密码每次手动输入，不会明文保存\n- 教务密码变更后自动识别并引导重新输入；连续失败 5 次进入 1 分钟冷却，避免教务账号被锁\n- 账号页支持一键清除凭据，并明示 root / 定制 ROM / 备份提取等残余风险\n- 合并两套并存的登录实现，修复「登录未真正进入教务系统却被判为成功」的问题\n- 课表 / 今日 / 设置 仍保持免登录、离线可用",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.6.0/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.0/SCNU-Schedule.apk"
     },
     "checksums": {
       "universal": ""
