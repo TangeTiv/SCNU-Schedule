@@ -248,6 +248,55 @@ git push origin main     # 镜像到 GitHub
       不要用 `(& curl.exe ... | Out-String) | ConvertFrom-Json` 直接管道解析。
 
 
+15. **⚠️ `git push` 偶发 exit 128（瞬时失败）—— 先手工复现，再决定是否接管**（v1.7.0 实测）：
+    修好坑 #13 之后，脚本第 2 步第一次推 tag 报了
+    `推送 refs/tags/v1.7.0 到 gitee 失败（exit 128）`。
+    但**手工重跑同一条命令立刻成功**（`* [new tag] v1.7.0 -> v1.7.0`）。
+    - 推测是凭据管理器首次交互或瞬时网络抖动，不是配置问题（`git push --dry-run` 预检当时是通的）。
+    - **处理原则**：脚本报 push 失败时，先手工执行一次 `git push <remote> <ref>`。
+      成功 → 瞬时故障，从下一步继续；仍失败 → 才是真问题，按报错内容排查。
+    - 无论哪种情况，**都不要重跑脚本**（坑 #12：versionCode 会被再 +1）。
+
+16. **坑 #13 已在 v1.7.0 修掉**：`release.ps1` 新增 `PushRef` 辅助函数
+    —— 临时把 `$ErrorActionPreference` 降级 → 只用 `$LASTEXITCODE` 判定成败 → 再恢复，
+    第 2 步与第 7 步共 4 处 push 全部改用它。上面第 13 条保留作历史记录。
+
+17. **PS 5.1 下核对 `gh release view --json` 的字段名**（v1.7.0 踩到）：
+    `isLatest` **不是**合法字段，会报 `Unknown JSON field` 并让整个命令 exit 1
+    （容易误判成"建 Release 失败"，其实上一条 `gh release create` 已经成功了）。
+    可用字段：`tagName` / `name` / `isDraft` / `isPrerelease` / `assets` / `body` / `url` 等。
+    - 顺带：`assets[].digest` 里带 `sha256:` 前缀，可直接用来核对上传的 APK 与本地是否同一份。
+    - 控制台把中文 Release 名显示成乱码属正常（坑 #14），**看字段值不要看回显**。
+
+### v1.7.0 手工接管实战记录（供下次参考）
+
+脚本在第 2 步中断后，从**下一个未完成步骤**接着做，全程约 15 分钟：
+
+```bash
+# ① 先核对"已完成什么"（坑 #13 要求，别急着重跑）
+git log --oneline -1                              # 版本号是否已升
+git tag -l 'vX.Y.Z'                               # 本地 tag
+git ls-remote --tags gitee refs/tags/vX.Y.Z       # 各远程推到哪一步
+git ls-remote gitee refs/heads/main               # main 是否已推（第 7 步才推）
+
+# ② 手工续做
+git push gitee  refs/tags/vX.Y.Z                  # 第 2 步（v1.7.0 就断在这里，重试即成功）
+git push origin refs/tags/vX.Y.Z
+./gradlew :app:assembleProdRelease                # 第 3 步
+cp app-prod-arm64-v8a-release.apk SCNU-Schedule.apk   # universal 模式改名
+sha256sum SCNU-Schedule.apk                       # 第 4 步
+# 第 5 步：Gitee 用 curl.exe 建 Release + attach_files；GitHub 用 gh release create
+# 第 6 步：手写 update.json 并 git commit
+git push gitee  refs/heads/main                   # 第 7 步
+git push origin refs/heads/main
+# 第 8 步：等 65 秒 → 读线上清单 → 下载 APK 算 SHA-256 与清单比对
+```
+
+**第 5 步建 Gitee Release 的要点**（按坑 #14）：
+`curl.exe ... -o <json文件>` 先落盘，再用 `ReadAllText($p, UTF8)` 读回 `ConvertFrom-Json` 取 `id`；
+**不要**写 `(& curl.exe ... | Out-String) | ConvertFrom-Json`。
+中文标题/正文用 `-F "name=<文件"` 从 UTF-8 无 BOM 的文件读入。
+
 # 工作方式
 
 - 用中文回复
