@@ -73,6 +73,22 @@ sealed interface Destination : NavKey {
      */
     @Serializable data object CourseSelection : Destination
 
+    /**
+     * AI 助手（本地数据问答）。
+     *
+     * 无参数：对话历史**只在内存里**（已定，退出即清空，不落盘），
+     * 因此不需要导航传参，也不新增 Room 表。
+     */
+    @Serializable data object AiAssistant : Destination
+
+    /**
+     * AI 设置（厂商、模型、API Key、图文教程、成本提示）。
+     *
+     * 与对话页分开：内容量较大（含教程与价格说明），
+     * 塞进弹层会很挤，且项目里「账号」「通知设置」也都是独立页面。
+     */
+    @Serializable data object AiSettings : Destination
+
     // --- 动态传参页面 ---
 
     @Serializable

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.EditNote
@@ -171,7 +172,8 @@ fun CampusScreen(
                             } else {
                                 showSelectionLogin = true
                             }
-                        }
+                        },
+                        onAiAssistantClick = { onNavigate(Destination.AiAssistant) }
                     )
                 }
             }
@@ -538,7 +540,7 @@ private fun SmallServiceCardContent(
 // region 三级功能网格（选课等后续模块）
 
 /**
- * 第三行小卡网格：选课入口。
+ * 第三行小卡网格：选课 + AI 助手。
  *
  * ## 为什么这样排版
  *
@@ -546,12 +548,14 @@ private fun SmallServiceCardContent(
  * 都占用 1/3 栅格（`weight(1f)` + 相同的 12dp 间距），并让两行紧邻 ——
  * 于是列宽天然对齐，选课卡正对图书馆卡。
  *
- * 右侧两格刻意留空，不填假卡：后续模块可直接占用，无需重排已有卡片。
+ * 「AI 助手」占用原先的**第一个预留位**（v1.8.0 起），沿用完全相同的卡片规格，
+ * 因此视觉上不会打破已有网格；最右一格仍留空，供后续模块使用。
  */
 @Composable
 private fun TertiaryServiceGrid(
     isDark: Boolean,
-    onCourseSelectionClick: () -> Unit
+    onCourseSelectionClick: () -> Unit,
+    onAiAssistantClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -565,8 +569,17 @@ private fun TertiaryServiceGrid(
             isDark = isDark,
             onClick = onCourseSelectionClick
         )
+        // AI 助手：v1.8.0 起占用第一个预留位（P-AI）。
+        // 入口放这里而不是每个模块内嵌，是 §13.2 决策 41 的结论。
+        SmallServiceCard(
+            icon = Icons.Filled.AutoAwesome,
+            iconBgColor = Color(0xFF7C3AED),
+            title = stringResource(R.string.campus_card_ai),
+            modifier = Modifier.weight(1f),
+            isDark = isDark,
+            onClick = onAiAssistantClick
+        )
         // 预留位：与图书馆卡同列宽，保持网格对称
-        Spacer(modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.weight(1f))
     }
 }

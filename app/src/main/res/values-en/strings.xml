@@ -769,4 +769,130 @@
     <string name="onboarding_notice_4">Found a problem? Tell us via Me - More - Feedback.</string>
     <string name="onboarding_confirm">Got it</string>
 
+    <!-- ═══════════════════════════════════════════════════════════════════
+         v1.8.0 AI assistant (P-AI)
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Tool progress feedback ── -->
+    <string name="ai_tool_loading_generic">Looking up your local data…</string>
+    <string name="ai_tool_loading_courses">Looking up your timetable…</string>
+    <string name="ai_tool_loading_exams">Looking up your exams…</string>
+    <string name="ai_tool_loading_grades">Looking up your grades…</string>
+    <string name="ai_tool_loading_credits">Adding up your credits and GPA…</string>
+    <string name="ai_tool_loading_plan">Looking up your study plan…</string>
+
+    <!-- ── Tool failure hints ── -->
+    <string name="ai_tool_error_invalid_argument">Invalid arguments, the lookup was rejected</string>
+    <string name="ai_tool_error_unknown_tool">The model asked for a tool that does not exist</string>
+    <string name="ai_tool_error_internal">The lookup failed</string>
+    <string name="ai_tool_error_module_not_available">AI lookup for this module is not available yet</string>
+    <string name="ai_tool_done_ok">Found</string>
+    <string name="ai_tool_done_empty">Nothing found</string>
+
+    <!-- ── Illustrated tutorial (drawn in-app; no real vendor screenshots) ── -->
+    <string name="ai_tutorial_step_open_site_title">Sign up and sign in</string>
+    <string name="ai_tutorial_step_open_site_desc">Open the DeepSeek platform in a browser and register with your phone number or email. This step is free.</string>
+    <string name="ai_tutorial_step_recharge_title">Top up a small balance</string>
+    <string name="ai_tutorial_step_recharge_desc">The API is pay-as-you-go, so you cannot call it with a zero balance. The smallest top-up is enough — one question usually costs a fraction of a cent.</string>
+    <string name="ai_tutorial_step_create_key_title">Create an API key</string>
+    <string name="ai_tutorial_step_create_key_desc">Open the API Keys page, tap Create, and copy the key. It is shown in full only once, so paste it into the field below right away.</string>
+    <string name="ai_tutorial_step_paste_key_title">Paste it here and test</string>
+    <string name="ai_tutorial_step_paste_key_desc">Paste the key, then tap Test connection. If it says Available, you are ready to ask about your timetable; if it fails, the reason is shown below.</string>
+
+    <!-- ── Campus page entry card ── -->
+    <string name="campus_card_ai">AI assistant</string>
+    <string name="campus_card_ai_desc">Timetable, grades, credits</string>
+
+    <!-- ── Chat screen ── -->
+    <string name="ai_title">AI assistant</string>
+    <string name="ai_action_new_chat">New chat</string>
+    <string name="ai_action_settings">AI settings</string>
+    <string name="ai_input_hint">Ask about your timetable, exams, grades, credits…</string>
+    <string name="ai_action_send">Send</string>
+    <string name="ai_action_stop">Stop</string>
+    <string name="ai_greeting_title">Here is what I can look up</string>
+    <string name="ai_greeting_scope">I answer only from the local data you synced on the Campus page, and I will say so plainly when something is not found.</string>
+    <string name="ai_suggestion_courses">What classes do I have tomorrow?</string>
+    <string name="ai_suggestion_exams">How many exams do I still have?</string>
+    <string name="ai_suggestion_credits">How many credits do I still need?</string>
+    <string name="ai_suggestion_grades">What is my overall GPA?</string>
+    <string name="ai_role_you">You</string>
+    <string name="ai_role_assistant">AI</string>
+
+    <!-- ── First-run privacy dialog ── -->
+    <string name="ai_privacy_title">Before you start</string>
+    <string name="ai_privacy_body">To answer your questions, your timetable, exam schedule, grade details (including individual scores), credits and study-plan data are sent over the network to the model provider you choose.\n\n· Your API key is stored encrypted on this device only and is never uploaded to our servers.\n· Data goes only to the provider you configured; we neither handle nor store it.\n· With no API key configured, nothing at all is sent. You can clear the key any time in AI settings.\n\nIf you decline, the timetable, today view and other features keep working as before.</string>
+    <string name="ai_privacy_accept">I understand, start using it</string>
+    <string name="ai_privacy_decline">Not now</string>
+
+    <!-- ── Not configured ── -->
+    <string name="ai_not_configured_title">No model configured yet</string>
+    <string name="ai_not_configured_desc">You need to enter your own API key. DeepSeek is recommended: inexpensive, supports tool calling, and one question usually costs a fraction of a cent.</string>
+    <string name="ai_not_configured_action">Set it up</string>
+
+    <!-- ── Degraded mode ── -->
+    <string name="ai_degraded_no_tool">AI lookup for this module is not available yet, so this answer uses the local summary only.</string>
+    <string name="ai_degraded_no_tool_support">This model does not support tool calling, so summary mode is in use. Consider switching to DeepSeek.</string>
+
+    <!-- ── Error messages ── -->
+    <string name="ai_error_network">Cannot reach the model service. Check your network and retry</string>
+    <string name="ai_error_timeout">Request timed out. The network may be slow or the answer too long</string>
+    <string name="ai_error_unauthorized">The API key is invalid or expired. Update it in AI settings</string>
+    <string name="ai_error_rate_limited">Too many requests. Please try again later</string>
+    <string name="ai_error_insufficient_balance">Insufficient balance. Please top up with your provider</string>
+    <string name="ai_error_bad_request">The request was rejected. Check the model name and base URL</string>
+    <string name="ai_error_server">The model service is having trouble. Try again later</string>
+    <string name="ai_error_bad_response">Unexpected response format. Make sure this endpoint is OpenAI-compatible</string>
+    <string name="ai_error_not_configured">No API key configured yet</string>
+    <string name="ai_error_unknown">Something went wrong: %1$s</string>
+    <string name="ai_error_empty_question">Please type a question first</string>
+
+    <!-- ── AI settings screen ── -->
+    <string name="ai_settings_title">AI settings</string>
+    <string name="ai_settings_section_provider">Provider</string>
+    <string name="ai_settings_provider_deepseek">DeepSeek</string>
+    <string name="ai_settings_provider_custom">Custom</string>
+    <string name="ai_settings_model">Model</string>
+    <string name="ai_settings_base_url">Base URL</string>
+    <string name="ai_settings_base_url_fixed">Fixed by the preset, nothing to fill in</string>
+    <string name="ai_settings_api_key">API key</string>
+    <string name="ai_settings_api_key_hint">Paste the key you created in the provider console</string>
+    <string name="ai_settings_api_key_saved">Saved: %1$s</string>
+    <string name="ai_settings_api_key_replace_hint">Leave empty to keep the saved key</string>
+    <string name="ai_settings_show">Show</string>
+    <string name="ai_settings_hide">Hide</string>
+    <string name="ai_settings_save">Save</string>
+    <string name="ai_settings_saved">Saved</string>
+    <string name="ai_settings_test">Test connection</string>
+    <string name="ai_settings_testing">Testing…</string>
+    <string name="ai_settings_test_ok">Available: %1$s, took %2$d ms</string>
+    <string name="ai_settings_test_ok_no_model">Available, took %1$d ms</string>
+    <string name="ai_settings_test_failed">Unavailable: %1$s</string>
+    <string name="ai_settings_clear_key">Clear API key</string>
+    <string name="ai_settings_clear_confirm_title">Clear the API key?</string>
+    <string name="ai_settings_clear_confirm_body">You will need to enter it again to keep using the AI assistant. Your local timetable and grade data are unaffected.</string>
+    <string name="ai_settings_clear">Clear</string>
+    <string name="ai_settings_cancel">Cancel</string>
+    <string name="ai_settings_custom_warning">A custom provider must support the OpenAI-compatible format and Tool Calls, otherwise only summary questions can be answered.</string>
+    <string name="ai_settings_insecure_warning">This is a plain http address, so your API key travels unencrypted. Switching to https is strongly recommended.</string>
+    <string name="ai_settings_section_cost">Cost</string>
+    <string name="ai_settings_cost_input">input</string>
+    <string name="ai_settings_cost_output">output</string>
+    <string name="ai_settings_cost_per_million">per million tokens</string>
+    <string name="ai_settings_cost_off_peak">off-peak</string>
+    <string name="ai_settings_cost_peak_title">Peak-hour prices double</string>
+    <string name="ai_settings_cost_peak_windows">Weekdays %1$s and %2$s (UTC+8)</string>
+    <string name="ai_settings_cost_peak_now">It is peak hours now, prices are doubled</string>
+    <string name="ai_settings_cost_note">For tasks like timetable Q&amp;A, the model\'s thinking mode is turned off to reduce latency and cost.</string>
+    <string name="ai_settings_section_tutorial">How to get an API key</string>
+    <string name="ai_settings_open_console">Open console</string>
+    <string name="ai_settings_open_api_keys">Open API Keys page</string>
+    <string name="ai_settings_section_tool">Tool calling support</string>
+    <string name="ai_settings_tool_supported">Supported: the model can look up timetable and grade details on its own for more accurate answers</string>
+    <string name="ai_settings_tool_unsupported">This model was detected as not supporting tool calling, so summary mode is in use</string>
+    <string name="ai_settings_tool_recheck">Re-check</string>
+    <string name="ai_settings_key_required">Please enter an API key first</string>
+    <string name="ai_settings_base_url_required">Please enter a base URL</string>
+    <string name="ai_settings_model_required">Please enter a model name</string>
+
 </resources>

@@ -1,6 +1,10 @@
 package com.xingheyuzhuan.shiguangschedule
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -16,10 +20,12 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavEntry
@@ -30,6 +36,8 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.xingheyuzhuan.shiguangschedule.data.model.StartScreen
 import com.xingheyuzhuan.shiguangschedule.ui.account.AccountScreen
+import com.xingheyuzhuan.shiguangschedule.ui.ai.AiAssistantScreen
+import com.xingheyuzhuan.shiguangschedule.ui.ai.AiSettingsScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.AcademicScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CampusScreen
 import com.xingheyuzhuan.shiguangschedule.ui.campus.CourseSelectionScreen
@@ -208,6 +216,35 @@ fun ScreenContent(
      */
     courseSelectionViewModel: CourseSelectionViewModel
 ) {
+    // ── 键盘弹出时的窗口行为（按目的地切换） ──
+    //
+    // 只有 AI 对话页需要禁止系统"平移整个窗口把焦点控件顶出键盘"。
+    // 真机实测（小米 / Android 16 / 边到边）：该页输入栏固定在窗口最底部，
+    // 系统会为此把窗口整体上移约 900px，且**只算一次**、之后不复位 ——
+    // 表现为顶栏被推出屏幕、输入栏与键盘之间空出一大块。
+    // AI 页自己用 WindowInsets 处理了键盘内边距，因此必须关掉系统那一半。
+    //
+    // 放在这里而不是 AI 页内部：页面内要靠 onDispose 恢复原值，
+    // 实测 onDispose 时机不可靠，会把 adjust=nothing 泄漏到账号页等其它页面。
+    // 按目的地设置则是幂等的，进出都不会留下残留状态。
+    //
+    // 注意 `LocalContext.current` 必须在 Composable 上下文里读出来 ——
+    // 在 LaunchedEffect 的协程体里读会报「@Composable invocations can only happen
+    // from the context of a @Composable function」。
+    val hostContext = LocalContext.current
+    LaunchedEffect(targetDest) {
+        val window = hostContext.findActivity()?.window ?: return@LaunchedEffect
+        window.setSoftInputMode(
+            if (targetDest == Destination.AiAssistant) {
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            } else {
+                // App 未在 Manifest 声明 softInputMode，系统默认行为即 adjustResize；
+                // 这里显式写出来，避免把上一次的 adjust=nothing 带过去。
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            }
+        )
+    }
+
     when (targetDest) {
         Destination.CourseSchedule -> WeeklyScheduleScreen(onNavigate, onBack)
         Destination.Campus -> CampusScreen(onNavigate, onBack, courseSelectionViewModel = courseSelectionViewModel)
@@ -238,6 +275,8 @@ fun ScreenContent(
             onBack = onBack,
             viewModel = courseSelectionViewModel
         )
+        Destination.AiAssistant -> AiAssistantScreen(onNavigate = onNavigate, onBack = onBack)
+        Destination.AiSettings -> AiSettingsScreen(onBack = onBack)
         Destination.SyncSelection -> {
             SyncSelectionScreen(
                 onNavigate = onNavigate,
@@ -259,4 +298,14 @@ fun ScreenContent(
             targetDest.courseName, onBack, onNavigate
         )
     }
+}
+
+/** 沿 `ContextWrapper` 链找到宿主 Activity（Compose 里 `LocalContext` 常被包装过）。 */
+private fun Context.findActivity(): Activity? {
+    var context: Context? = this
+    while (context is ContextWrapper) {
+        if (context is Activity) return context
+        context = context.baseContext
+    }
+    return null
 }

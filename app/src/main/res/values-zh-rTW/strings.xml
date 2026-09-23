@@ -769,4 +769,130 @@
     <string name="onboarding_notice_4">有問題請到【我的】→【更多】→【意見回饋】告訴我們。</string>
     <string name="onboarding_confirm">我知道了</string>
 
+    <!-- ═══════════════════════════════════════════════════════════════════
+         v1.8.0 AI 助手（P-AI）
+         ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── 工具過程回饋 ── -->
+    <string name="ai_tool_loading_generic">正在查詢本機資料…</string>
+    <string name="ai_tool_loading_courses">正在查詢你的課表…</string>
+    <string name="ai_tool_loading_exams">正在查詢你的考試安排…</string>
+    <string name="ai_tool_loading_grades">正在查詢你的成績…</string>
+    <string name="ai_tool_loading_credits">正在統計你的學分與績點…</string>
+    <string name="ai_tool_loading_plan">正在查詢你的培養計畫…</string>
+
+    <!-- ── 工具失敗提示 ── -->
+    <string name="ai_tool_error_invalid_argument">參數不合法，已拒絕這次查詢</string>
+    <string name="ai_tool_error_unknown_tool">模型請求了一個不存在的工具</string>
+    <string name="ai_tool_error_internal">查詢發生錯誤</string>
+    <string name="ai_tool_error_module_not_available">該模組的 AI 查詢尚未開放</string>
+    <string name="ai_tool_done_ok">已查到</string>
+    <string name="ai_tool_done_empty">沒查到</string>
+
+    <!-- ── 圖文教學（自繪示意圖，無法使用廠商官網真實截圖） ── -->
+    <string name="ai_tutorial_step_open_site_title">註冊並登入開放平台</string>
+    <string name="ai_tutorial_step_open_site_desc">在瀏覽器開啟 DeepSeek 開放平台，用手機號碼或電子郵件註冊、登入。這一步是免費的。</string>
+    <string name="ai_tutorial_step_recharge_title">儲值一點餘額</string>
+    <string name="ai_tutorial_step_recharge_desc">API 依用量計費，未儲值無法呼叫。先儲值最小金額即可——問一次課表通常只花幾毛錢。</string>
+    <string name="ai_tutorial_step_create_key_title">建立 API Key</string>
+    <string name="ai_tutorial_step_create_key_desc">進入「API Keys」頁面點「建立」，複製產生的金鑰。它只會完整顯示這一次，請立刻貼到下方輸入框。</string>
+    <string name="ai_tutorial_step_paste_key_title">回到這裡貼上並測試</string>
+    <string name="ai_tutorial_step_paste_key_desc">貼上 Key 後點「測試連線」。顯示「可用」就可以去問課表了；失敗時下方會說明原因。</string>
+
+    <!-- ── 校園頁入口卡片 ── -->
+    <string name="campus_card_ai">AI 助手</string>
+    <string name="campus_card_ai_desc">問課表/成績/學分</string>
+
+    <!-- ── 對話頁 ── -->
+    <string name="ai_title">AI 助手</string>
+    <string name="ai_action_new_chat">新對話</string>
+    <string name="ai_action_settings">AI 設定</string>
+    <string name="ai_input_hint">問問課表、考試、成績、學分…</string>
+    <string name="ai_action_send">傳送</string>
+    <string name="ai_action_stop">停止</string>
+    <string name="ai_greeting_title">我可以幫你查這些</string>
+    <string name="ai_greeting_scope">只依據你在【校園】頁同步過的本地資料回答，查不到的會直接告訴你。</string>
+    <string name="ai_suggestion_courses">明天有什麼課？</string>
+    <string name="ai_suggestion_exams">還有幾科沒考？</string>
+    <string name="ai_suggestion_credits">我還差多少學分畢業？</string>
+    <string name="ai_suggestion_grades">我的平均績點是多少？</string>
+    <string name="ai_role_you">我</string>
+    <string name="ai_role_assistant">AI</string>
+
+    <!-- ── 首次隱私彈窗 ── -->
+    <string name="ai_privacy_title">使用前請先瞭解</string>
+    <string name="ai_privacy_body">為了回答你的問題，你的課表、考試安排、成績明細（含具體分數）、學分與培養計畫資料會透過網路傳送給你自己選定的模型服務商。\n\n· 你的 API Key 只加密保存在這台裝置上，不會上傳到我們的伺服器。\n· 資料只傳送給你自己設定的那家廠商，我們不經手、不儲存。\n· 不設定 API Key 就完全不會傳送任何資料；你可以隨時在 AI 設定中清除 Key。\n\n不同意也可以繼續使用課表、今日課表等其它功能。</string>
+    <string name="ai_privacy_accept">我已瞭解，開始使用</string>
+    <string name="ai_privacy_decline">暫不使用</string>
+
+    <!-- ── 未設定引導 ── -->
+    <string name="ai_not_configured_title">還沒有設定模型</string>
+    <string name="ai_not_configured_desc">需要填入你自己的 API Key。推薦 DeepSeek：便宜、支援工具呼叫，問一次課表通常只花幾毛錢。</string>
+    <string name="ai_not_configured_action">去設定</string>
+
+    <!-- ── 降級提示 ── -->
+    <string name="ai_degraded_no_tool">該模組的 AI 查詢尚未開放，本次只依據本地摘要回答。</string>
+    <string name="ai_degraded_no_tool_support">目前模型不支援工具呼叫，已切換為摘要模式，建議改用 DeepSeek。</string>
+
+    <!-- ── 錯誤文案 ── -->
+    <string name="ai_error_network">連不上模型服務，請檢查網路後重試</string>
+    <string name="ai_error_timeout">請求逾時，可能是網路較慢或回答過長</string>
+    <string name="ai_error_unauthorized">API Key 無效或已過期，請到 AI 設定中更新</string>
+    <string name="ai_error_rate_limited">請求過於頻繁，請稍後再試</string>
+    <string name="ai_error_insufficient_balance">帳戶餘額不足，請到廠商後台儲值</string>
+    <string name="ai_error_bad_request">請求被拒絕，請檢查模型名稱與介面位址是否正確</string>
+    <string name="ai_error_server">模型服務端故障，請稍後再試</string>
+    <string name="ai_error_bad_response">回應格式異常，請確認該位址支援 OpenAI 相容格式</string>
+    <string name="ai_error_not_configured">還沒有設定 API Key</string>
+    <string name="ai_error_unknown">發生錯誤：%1$s</string>
+    <string name="ai_error_empty_question">請先輸入問題</string>
+
+    <!-- ── AI 設定頁 ── -->
+    <string name="ai_settings_title">AI 設定</string>
+    <string name="ai_settings_section_provider">模型廠商</string>
+    <string name="ai_settings_provider_deepseek">DeepSeek</string>
+    <string name="ai_settings_provider_custom">自訂</string>
+    <string name="ai_settings_model">模型</string>
+    <string name="ai_settings_base_url">介面位址（base_url）</string>
+    <string name="ai_settings_base_url_fixed">由預設固定，無需填寫</string>
+    <string name="ai_settings_api_key">API Key</string>
+    <string name="ai_settings_api_key_hint">貼上你從廠商後台產生的 Key</string>
+    <string name="ai_settings_api_key_saved">已儲存：%1$s</string>
+    <string name="ai_settings_api_key_replace_hint">留空表示沿用已儲存的 Key</string>
+    <string name="ai_settings_show">顯示</string>
+    <string name="ai_settings_hide">隱藏</string>
+    <string name="ai_settings_save">儲存</string>
+    <string name="ai_settings_saved">已儲存</string>
+    <string name="ai_settings_test">測試連線</string>
+    <string name="ai_settings_testing">測試中…</string>
+    <string name="ai_settings_test_ok">可用：%1$s，耗時 %2$d 毫秒</string>
+    <string name="ai_settings_test_ok_no_model">可用，耗時 %1$d 毫秒</string>
+    <string name="ai_settings_test_failed">不可用：%1$s</string>
+    <string name="ai_settings_clear_key">清除 API Key</string>
+    <string name="ai_settings_clear_confirm_title">清除 API Key？</string>
+    <string name="ai_settings_clear_confirm_body">清除後需要重新填寫才能繼續使用 AI 助手。你的課表、成績等本地資料不受影響。</string>
+    <string name="ai_settings_clear">清除</string>
+    <string name="ai_settings_cancel">取消</string>
+    <string name="ai_settings_custom_warning">自訂廠商必須支援 OpenAI 相容格式與 Tool Calls，否則只能回答摘要類問題。</string>
+    <string name="ai_settings_insecure_warning">目前是 http 明文位址，API Key 會在網路上明文傳輸，強烈建議改用 https。</string>
+    <string name="ai_settings_section_cost">成本提示</string>
+    <string name="ai_settings_cost_input">輸入</string>
+    <string name="ai_settings_cost_output">輸出</string>
+    <string name="ai_settings_cost_per_million">每百萬 token</string>
+    <string name="ai_settings_cost_off_peak">離峰時段</string>
+    <string name="ai_settings_cost_peak_title">尖峰時段價格加倍</string>
+    <string name="ai_settings_cost_peak_windows">平日 %1$s、%2$s（UTC+8）</string>
+    <string name="ai_settings_cost_peak_now">現在是尖峰時段，價格加倍</string>
+    <string name="ai_settings_cost_note">課表問答這類任務已為你關閉模型的「思考模式」，以降低延遲與費用。</string>
+    <string name="ai_settings_section_tutorial">圖文教學：怎麼取得 API Key</string>
+    <string name="ai_settings_open_console">開啟主控台</string>
+    <string name="ai_settings_open_api_keys">開啟 API Keys 頁面</string>
+    <string name="ai_settings_section_tool">工具呼叫能力</string>
+    <string name="ai_settings_tool_supported">支援：模型可主動查詢課表、成績等明細，回答更準確</string>
+    <string name="ai_settings_tool_unsupported">已偵測到該模型不支援工具呼叫，目前為摘要模式</string>
+    <string name="ai_settings_tool_recheck">重新偵測</string>
+    <string name="ai_settings_key_required">請先填寫 API Key</string>
+    <string name="ai_settings_base_url_required">請填寫介面位址</string>
+    <string name="ai_settings_model_required">請填寫模型名稱</string>
+
 </resources>
