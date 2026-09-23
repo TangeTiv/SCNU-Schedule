@@ -1,8 +1,5 @@
 package com.xingheyuzhuan.shiguangschedule.data.auth
 
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Base64
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -18,12 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
-import java.security.GeneralSecurityException
-import java.security.KeyStore
 import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 import javax.inject.Inject
 import javax.inject.Named
 import javax.inject.Singleton
@@ -64,6 +56,12 @@ import javax.inject.Singleton
  * v1.6.0 及以前，学号明文存在 `app_settings` 的 `campus_account` 键里。
  * 本类提供 [readLegacyAccount] / [clearLegacyAccount] 用于**一次性迁移读取**，
  * 迁移完成后由 [ScnuAuthManager] 负责把旧键删掉。
+ *
+ * ## v1.8.0 变更（P-AI）
+ *
+ * 加解密实现已抽到 [KeystoreCipher]，与 AI 的 API Key 存储
+ * （`data/ai/AiKeyStore`）共用同一份代码。
+ * **本类的对外接口与密文格式一字未改**，设备上的存量凭据照常可解。
  */
 @Singleton
 class CredentialStore @Inject constructor(
@@ -74,21 +72,12 @@ class CredentialStore @Inject constructor(
      * 之所以让凭据仓库直接持有设置仓库的 DataStore，而不是另开一个迁移类：
      * 迁移是**一次性的**，且迁移对象本身就是凭据数据，放在这里最不容易漏。
      */
-    @Named("AppSettings") private val appSettingsDataStore: DataStore<Preferences>
+    @Named("AppSettings") private val appSettingsDataStore: DataStore<Preferences>,
+    /** 共享的 Keystore 加解密实现（全项目唯一一份）。 */
+    private val keystoreCipher: KeystoreCipher
 ) {
 
     companion object {
-        private const val KEYSTORE_PROVIDER = "AndroidKeyStore"
-        private const val KEY_ALGORITHM = KeyProperties.KEY_ALGORITHM_AES
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private const val KEY_SIZE_BITS = 256
-
-        /** GCM 推荐 96 位（12 字节）IV */
-        private const val IV_BYTES = 12
-
-        /** GCM 认证标签长度 */
-        private const val TAG_BITS = 128
-
         private const val ACCOUNT_KEY_ALIAS = "scnu_account_key_v1"
         private const val CREDENTIAL_KEY_ALIAS = "scnu_credential_key_v1"
 
@@ -160,7 +149,7 @@ class CredentialStore @Inject constructor(
         val passwordEnc = run {
             val plain = password.toUtf8Bytes()
             try {
-                encryptWithAuthenticatedCipher(passwordCipher, plain)
+                keystoreCipher.encryptWithCipher(passwordCipher, plain)
             } finally {
                 plain.fill(0)
             }
@@ -203,10 +192,8 @@ class CredentialStore @Inject constructor(
      *
      * @return 失败（Keystore 异常）时返回 null
      */
-    fun createPasswordEncryptCipher(): Cipher? = runCatching {
-        val key = getOrCreateKey(CREDENTIAL_KEY_ALIAS, requireUserAuth = true)
-        Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
-    }.onFailure { logKeyFailure("createPasswordEncryptCipher", it) }.getOrNull()
+    fun createPasswordEncryptCipher(): Cipher? =
+        keystoreCipher.newEncryptCipher(CREDENTIAL_KEY_ALIAS, requireUserAuth = true)
 
     /**
      * 创建解密密码用的 cipher。
@@ -217,15 +204,8 @@ class CredentialStore @Inject constructor(
      * @return 没有已保存密码、或密钥已作废（如用户新增了指纹）时返回 null
      */
     suspend fun createPasswordDecryptCipher(): Cipher? = withContext(Dispatchers.IO) {
-        runCatching {
-            val encoded = dataStore.data.first()[K_PASSWORD_ENC]
-                ?: return@runCatching null
-            val iv = decodeIv(encoded)
-            val key = getOrCreateKey(CREDENTIAL_KEY_ALIAS, requireUserAuth = true)
-            Cipher.getInstance(TRANSFORMATION).apply {
-                init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))
-            }
-        }.onFailure { logKeyFailure("createPasswordDecryptCipher", it) }.getOrNull()
+        val encoded = dataStore.data.first()[K_PASSWORD_ENC] ?: return@withContext null
+        keystoreCipher.newDecryptCipher(CREDENTIAL_KEY_ALIAS, requireUserAuth = true, encoded)
     }
 
     /**
@@ -239,8 +219,7 @@ class CredentialStore @Inject constructor(
             runCatching {
                 val encoded = dataStore.data.first()[K_PASSWORD_ENC]
                     ?: return@runCatching null
-                val ciphertext = decodeCiphertext(encoded)
-                authenticatedCipher.doFinal(ciphertext).toUtf8Chars()
+                keystoreCipher.decryptWithCipher(authenticatedCipher, encoded).toUtf8Chars()
             }.onFailure { logKeyFailure("unlockPassword", it) }.getOrNull()
         }
 
@@ -256,8 +235,8 @@ class CredentialStore @Inject constructor(
      */
     suspend fun clearAll() = withContext(Dispatchers.IO) {
         dataStore.edit { it.clear() }
-        deleteKey(ACCOUNT_KEY_ALIAS)
-        deleteKey(CREDENTIAL_KEY_ALIAS)
+        keystoreCipher.deleteKey(ACCOUNT_KEY_ALIAS)
+        keystoreCipher.deleteKey(CREDENTIAL_KEY_ALIAS)
     }
 
     /**
@@ -270,7 +249,7 @@ class CredentialStore @Inject constructor(
             prefs.remove(K_PASSWORD_ENC)
             prefs.remove(K_SAVED_AT)
         }
-        deleteKey(CREDENTIAL_KEY_ALIAS)
+        keystoreCipher.deleteKey(CREDENTIAL_KEY_ALIAS)
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -331,97 +310,38 @@ class CredentialStore @Inject constructor(
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 内部：Keystore
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * 取密钥；不存在则创建。
-     *
-     * @param requireUserAuth true = 每次使用都要求生物识别（`CryptoObject` 模式），
-     *                        false = 直接可用
-     * @throws GeneralSecurityException 密钥已因指纹变更被作废（`UnrecoverableKeyException`）
-     */
-    private fun getOrCreateKey(alias: String, requireUserAuth: Boolean): SecretKey {
-        val keyStore = KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }
-        // 注意：不吞异常 —— 密钥被作废时必须让调用方感知，否则会用废密钥去解密
-        (keyStore.getKey(alias, null) as? SecretKey)?.let { return it }
-
-        val generator = KeyGenerator.getInstance(KEY_ALGORITHM, KEYSTORE_PROVIDER)
-        val builder = KeyGenParameterSpec.Builder(
-            alias,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(KEY_SIZE_BITS)
-            .setUserAuthenticationRequired(requireUserAuth)
-
-        if (requireUserAuth) {
-            // 仅在要求认证时才可调用（否则抛 IllegalArgumentException）：
-            // 用户新增/更换生物识别 → 旧密钥作废 → 必须重新输入密码
-            builder.setInvalidatedByBiometricEnrollment(true)
-        }
-
-        generator.init(builder.build())
-        return generator.generateKey()
-    }
-
-    private fun deleteKey(alias: String) {
-        runCatching {
-            KeyStore.getInstance(KEYSTORE_PROVIDER).apply { load(null) }.deleteEntry(alias)
-        }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════
     // 内部：加解密
+    //
+    // 实现全部委托给 [KeystoreCipher]。保留这两个私有包装方法而不是直接在
+    // 调用点写 `keystoreCipher.encrypt(...)`，是为了让「学号用哪把密钥、
+    // 要不要认证」这件事在**一个地方**说清楚，调用点读起来仍是原来的语义。
     // ═══════════════════════════════════════════════════════════════════════
 
     /** 用不要求认证的密钥加密学号。 */
-    private fun encryptWithAccountKey(plain: String): String {
-        val key = getOrCreateKey(ACCOUNT_KEY_ALIAS, requireUserAuth = false)
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
-        return encode(cipher.iv, cipher.doFinal(plain.toByteArray(Charsets.UTF_8)))
-    }
+    private fun encryptWithAccountKey(plain: String): String =
+        keystoreCipher.encrypt(
+            alias = ACCOUNT_KEY_ALIAS,
+            requireUserAuth = false,
+            plain = plain.toByteArray(Charsets.UTF_8)
+        )
 
     /** 用不要求认证的密钥解密学号。 */
-    private fun decryptWithAccountKey(encoded: String): String {
-        val key = getOrCreateKey(ACCOUNT_KEY_ALIAS, requireUserAuth = false)
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply {
-            init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, decodeIv(encoded)))
-        }
-        return String(cipher.doFinal(decodeCiphertext(encoded)), Charsets.UTF_8)
-    }
-
-    /** 用已授权的 cipher 加密（IV 由 AndroidKeyStore 在 `init` 时生成）。 */
-    private fun encryptWithAuthenticatedCipher(cipher: Cipher, plain: ByteArray): String {
-        val ciphertext = cipher.doFinal(plain)
-        return encode(cipher.iv, ciphertext)
-    }
-
-    /** `IV ‖ ciphertext` → Base64 */
-    private fun encode(iv: ByteArray, ciphertext: ByteArray): String {
-        val packed = ByteArray(iv.size + ciphertext.size)
-        System.arraycopy(iv, 0, packed, 0, iv.size)
-        System.arraycopy(ciphertext, 0, packed, iv.size, ciphertext.size)
-        return Base64.encodeToString(packed, Base64.NO_WRAP)
-    }
-
-    private fun decodeRaw(encoded: String): ByteArray = Base64.decode(encoded, Base64.NO_WRAP)
-
-    private fun decodeIv(encoded: String): ByteArray = decodeRaw(encoded).copyOfRange(0, IV_BYTES)
-
-    private fun decodeCiphertext(encoded: String): ByteArray {
-        val raw = decodeRaw(encoded)
-        return raw.copyOfRange(IV_BYTES, raw.size)
-    }
+    private fun decryptWithAccountKey(encoded: String): String =
+        String(
+            keystoreCipher.decrypt(
+                alias = ACCOUNT_KEY_ALIAS,
+                requireUserAuth = false,
+                encoded = encoded
+            ),
+            Charsets.UTF_8
+        )
 
     /**
      * 只记录异常**类型**，绝不记录任何与学号/密码相关的值。
      * 这是硬约束（方案文档 §5.7：日志中不得打印学号）。
      */
-    private fun logKeyFailure(where: String, e: Throwable) {
-        android.util.Log.w("CredentialStore", "$where failed: ${e.javaClass.simpleName}")
-    }
+    private fun logKeyFailure(where: String, e: Throwable) =
+        keystoreCipher.logKeyFailure(where, e)
 }
 
 /**

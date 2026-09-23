@@ -3,9 +3,9 @@ package com.xingheyuzhuan.shiguangschedule.data.network
 import com.xingheyuzhuan.shiguangschedule.data.db.main.Course
 import com.xingheyuzhuan.shiguangschedule.data.db.main.CourseWeek
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamEntity
+import com.xingheyuzhuan.shiguangschedule.data.model.parseExamKssj
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -25,24 +25,13 @@ import java.util.UUID
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * 考试时间 kssj 解析正则。
+ * 考试时间 kssj 的解析**已统一**到
+ * [com.xingheyuzhuan.shiguangschedule.data.model.parseExamKssj]。
  *
- * 支持所有实际教务格式：
- * - "2024-01-15 14:30-16:30"（空格 + 范围）
- * - "2025-01-10 09:00"（仅开始时间，结束时间自动推算 +90min）
- * - "2026-07-09(09:00-11:00)"（括号包裹，无空格）
- *
- * 分组：
- * 1: 日期 (yyyy-MM-dd)
- * 2: 开始时间 (HH:mm)
- * 3: 结束时间 (HH:mm)
+ * 历史：本文件与 `ui/campus/ExamViewModel` 曾各自持有一份完全相同的正则与解析逻辑
+ * （含"仅有开始时间时 +90 分钟"的推算）。v1.8.0（P-AI）的本地问答也需要解析考试时间，
+ * 为避免出现第三份拷贝，收敛为 `data/model/ExamTime.kt` 里的单一实现，两处均改为调用它。
  */
-private val KSSJ_REGEX = Regex(
-    """(\d{4}-\d{2}-\d{2})\s*\(?(\d{2}:\d{2})-(\d{2}:\d{2})\)?"""
-)
-
-/** 当 kssj 仅有开始时间时，默认考试时长为 90 分钟 */
-private const val DEFAULT_EXAM_DURATION_MINUTES = 90L
 
 /**
  * 将 [ExamItem] 转换为模拟课程 [Course] 及其关联的 [CourseWeek]。
@@ -74,27 +63,12 @@ fun ExamItem.toCourseEntity(
     firstDayOfWeek: Int = DayOfWeek.MONDAY.value
 ): Pair<Course, List<CourseWeek>>? {
     // ── 1. 解析 kssj ──
-    val match = KSSJ_REGEX.find(kssj) ?: return null
-    val dateStr = match.groupValues[1]
-    val startTimeStr = match.groupValues[2]
-    val endTimeStr = match.groupValues[3]
-
-    val examDate = try {
-        LocalDate.parse(dateStr)
-    } catch (_: Exception) {
-        return null
-    }
-    val startTime = try {
-        LocalTime.parse(startTimeStr)
-    } catch (_: Exception) {
-        return null
-    }
-    val endTime = if (endTimeStr.isNotBlank()) {
-        try { LocalTime.parse(endTimeStr) } catch (_: Exception) { return null }
-    } else {
-        // 仅有开始时间，推算结束时间
-        startTime.plusMinutes(DEFAULT_EXAM_DURATION_MINUTES)
-    }
+    // v1.8.0 起统一走 data/model/ExamTime.kt（原先这里与 ExamViewModel 各有一份
+    // 完全相同的正则，P-AI 的问答需要第三份，故收敛成一份实现）。
+    val examTime = parseExamKssj(kssj) ?: return null
+    val examDate = examTime.date
+    val startTime = examTime.start
+    val endTime = examTime.end
 
     // ── 2. 计算坐标：周次 + 星期 ──
     // 必须与 AppSettingsRepository.getWeekIndexAtDate() 使用相同的对齐算法，
@@ -128,7 +102,7 @@ fun ExamItem.toCourseEntity(
         startSection = null,
         endSection = null,
         isCustomTime = true,
-        customStartTime = startTimeStr,
+        customStartTime = startTime.format(fmt),
         customEndTime = endTime.format(fmt),
         colorInt = colorInt.coerceIn(0, Int.MAX_VALUE),
         remark = null
@@ -155,26 +129,11 @@ fun ExamEntity.toCourseEntity(
     firstDayOfWeek: Int = DayOfWeek.MONDAY.value
 ): Pair<Course, List<CourseWeek>>? {
     // ── 1. 解析 kssj ──
-    val match = KSSJ_REGEX.find(kssj) ?: return null
-    val dateStr = match.groupValues[1]
-    val startTimeStr = match.groupValues[2]
-    val endTimeStr = match.groupValues[3]
-
-    val examDate = try {
-        LocalDate.parse(dateStr)
-    } catch (_: Exception) {
-        return null
-    }
-    val startTime = try {
-        LocalTime.parse(startTimeStr)
-    } catch (_: Exception) {
-        return null
-    }
-    val endTime = if (endTimeStr.isNotBlank()) {
-        try { LocalTime.parse(endTimeStr) } catch (_: Exception) { return null }
-    } else {
-        startTime.plusMinutes(DEFAULT_EXAM_DURATION_MINUTES)
-    }
+    // v1.8.0 起统一走 data/model/ExamTime.kt（见文件头说明）。
+    val examTime = parseExamKssj(kssj) ?: return null
+    val examDate = examTime.date
+    val startTime = examTime.start
+    val endTime = examTime.end
 
     // ── 2. 计算坐标：周次 + 星期 ──
     val dayOfWeekEnum = DayOfWeek.of(firstDayOfWeek)
@@ -206,7 +165,7 @@ fun ExamEntity.toCourseEntity(
         startSection = null,
         endSection = null,
         isCustomTime = true,
-        customStartTime = startTimeStr,
+        customStartTime = startTime.format(fmt),
         customEndTime = endTime.format(fmt),
         colorInt = colorInt.coerceIn(0, Int.MAX_VALUE),
         remark = null

@@ -20,6 +20,8 @@ private val Context.appSettingsDataStore: DataStore<Preferences> by preferencesD
 private val Context.schoolHistoryDataStore: DataStore<Preferences> by preferencesDataStore(name = "school_history")
 // 定义教务凭据 Preferences DataStore 委托（独立文件，便于一键清除）
 private val Context.authCredentialsDataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_credentials")
+// 定义 AI 设置 Preferences DataStore 委托（独立文件，理由见 provideAiSettingsDataStore）
+private val Context.aiSettingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "ai_settings")
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -67,4 +69,20 @@ object DataStoreModule {
     @Named("AuthCredentials")
     fun provideAuthCredentialsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
         context.authCredentialsDataStore
+
+    /**
+     * 提供 AI 设置 DataStore（API Key 的 Keystore 密文 + 厂商配置 + 隐私同意标记）。
+     *
+     * 单独一个文件，与 `auth_credentials` **完全隔离**，理由是双向的：
+     * - 账号页的「一键清除教务凭据」清空的是 `auth_credentials`，
+     *   不该顺手把用户自己充了钱的 API Key 也删掉；
+     * - 反过来，AI 设置页的「清除 API Key」也不该影响教务登录态。
+     *
+     * 两者混在一起时，任一处的"清除"按钮都会变成一票否决式的误伤。
+     */
+    @Provides
+    @Singleton
+    @Named("AiSettings")
+    fun provideAiSettingsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+        context.aiSettingsDataStore
 }

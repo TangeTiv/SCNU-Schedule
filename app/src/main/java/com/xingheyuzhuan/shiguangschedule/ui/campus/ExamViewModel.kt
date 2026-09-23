@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamDao
 import com.xingheyuzhuan.shiguangschedule.data.db.main.ExamEntity
+import com.xingheyuzhuan.shiguangschedule.data.model.parseExamKssj
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,10 +35,13 @@ data class ExamUiModel(
  * 考试时间解析正则 —— 兼容两种格式：
  * - "2026-06-29 14:30-16:30"（空格 + 范围）
  * - "2026-06-29(14:30-16:30)"（括号包裹）
+ *
+ * ⚠️ v1.8.0 起**已迁出**：本文件原先自带一份正则，与
+ * `data/network/ExamItemMapper` 里的那份完全重复。
+ * P-AI 的本地问答也要判断"还有几门没考"，若再抄一份就是第三份，
+ * 因此统一到 [com.xingheyuzhuan.shiguangschedule.data.model.parseExamKssj]。
+ * 这样 AI 的回答与【考试安排】页的倒计时**必然一致**。
  */
-private val KSSJ_REGEX = Regex(
-    """(\d{4}-\d{2}-\d{2})\s*\(?(\d{2}:\d{2})-(\d{2}:\d{2})\)?"""
-)
 
 /** 倒计时分级颜色 */
 private object CountdownColors {
@@ -111,16 +115,8 @@ class ExamViewModel @Inject constructor(
     // 纯函数：倒计时 & 时间解析
     // ═══════════════════════════════════════════════════════════════════════
 
-    internal fun parseExamTime(kssj: String): Triple<LocalDate, LocalTime, LocalTime>? {
-        val match = KSSJ_REGEX.find(kssj) ?: return null
-        return try {
-            Triple(
-                LocalDate.parse(match.groupValues[1]),
-                LocalTime.parse(match.groupValues[2]),
-                LocalTime.parse(match.groupValues[3])
-            )
-        } catch (_: Exception) { null }
-    }
+    internal fun parseExamTime(kssj: String): Triple<LocalDate, LocalTime, LocalTime>? =
+        parseExamKssj(kssj)?.let { Triple(it.date, it.start, it.end) }
 
     private fun computeCountdownStatus(exam: ExamEntity, now: LocalDateTime, start: LocalDateTime, end: LocalDateTime): ExamUiModel {
         return if (now.isAfter(end)) {
