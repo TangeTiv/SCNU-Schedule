@@ -1,21 +1,21 @@
 {
   "prod": {
-    "latestVersionCode": 14,
-    "latestVersionName": "1.7.1",
-    "changelog": "🚀 v1.7.1 更新\n- 修正首次启动引导弹窗：步骤改为「设置开学日期 → 登录账号 → 同步数据」，与当前版本一致\n- 去掉弹窗里三处已过期的说明（登录入口位置、下学期课表、校园页功能列表）\n- 弹窗注意事项改为密码安全、生物识别降级、教务系统不稳定等真实提示\n- 引导弹窗支持多语言（简体 / 繁体 / English）\n- 仓库新增完整图文使用教程（docs/使用文档.md）",
+    "latestVersionCode": 15,
+    "latestVersionName": "1.8.0",
+    "changelog": "🚀 v1.8.0 更新\n- 新增「AI 助手」：在【校园】页进入，可用自然语言查自己的课表、考试、成绩、学分、培养计划与非正式学时\n- AI 先调用本地工具读到你的真实数据再回答；绩点、学分差额等数值全部由本地算好，不靠模型编造，查不到的会直接说明\n- 支持流式输出、工具调用过程反馈（「正在查询你的课表…」）、首屏引导卡片\n- 自带 API Key（BYOK）：内置 DeepSeek 预设与自定义厂商，附图文教程与分时价格提示；Key 经系统级密钥加密只存本机，不上传任何服务器\n- 首次使用有隐私告知，明确说明课表/成绩明细会发送给你选定的模型服务商\n- 顺手统一了考试时间解析，AI 的判定与【考试安排】页保持一致",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.1/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.8.0/SCNU-Schedule.apk"
     },
     "checksums": {
-      "universal": "8d65888903f7ebda8de929c9bffc29354e1f75b1a9d91216467cd23bf49f0af2"
+      "universal": "401c4872e9b8531af4a82709a78bb948f6a5cf9b8b7a26876ce8277e9ec1e43b"
     }
   },
   "dev": {
-    "latestVersionCode": 14,
-    "latestVersionName": "1.7.1-dev",
-    "changelog": "🚀 v1.7.1 更新\n- 修正首次启动引导弹窗：步骤改为「设置开学日期 → 登录账号 → 同步数据」，与当前版本一致\n- 去掉弹窗里三处已过期的说明（登录入口位置、下学期课表、校园页功能列表）\n- 弹窗注意事项改为密码安全、生物识别降级、教务系统不稳定等真实提示\n- 引导弹窗支持多语言（简体 / 繁体 / English）\n- 仓库新增完整图文使用教程（docs/使用文档.md）",
+    "latestVersionCode": 15,
+    "latestVersionName": "1.8.0-dev",
+    "changelog": "🚀 v1.8.0 更新\n- 新增「AI 助手」：在【校园】页进入，可用自然语言查自己的课表、考试、成绩、学分、培养计划与非正式学时\n- AI 先调用本地工具读到你的真实数据再回答；绩点、学分差额等数值全部由本地算好，不靠模型编造，查不到的会直接说明\n- 支持流式输出、工具调用过程反馈（「正在查询你的课表…」）、首屏引导卡片\n- 自带 API Key（BYOK）：内置 DeepSeek 预设与自定义厂商，附图文教程与分时价格提示；Key 经系统级密钥加密只存本机，不上传任何服务器\n- 首次使用有隐私告知，明确说明课表/成绩明细会发送给你选定的模型服务商\n- 顺手统一了考试时间解析，AI 的判定与【考试安排】页保持一致",
     "downloadLinks": {
-      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.7.1/SCNU-Schedule.apk"
+      "universal": "https://gitee.com/TangeTiw/scnu-schedule/releases/download/v1.8.0/SCNU-Schedule.apk"
     },
     "checksums": {
       "universal": ""
